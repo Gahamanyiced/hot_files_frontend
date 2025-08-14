@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  Box,
-  Typography,
-  Link,
-  Divider,
-  useTheme,
-  alpha,
-} from '@mui/material';
+import { Box, Typography, Link, Divider, useTheme, alpha } from '@mui/material';
 import {
   FlightTakeoff as FlightIcon,
   Copyright as CopyrightIcon,
