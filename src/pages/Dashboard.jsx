@@ -53,6 +53,8 @@ const Dashboard = () => {
     widgets,
   } = useAppSelector((state) => state.dashboard);
 
+  console.log('executive',executiveDashboard)
+
   const { loading, data, error, lastUpdated } = executiveDashboard;
 
   // Load dashboard data on mount

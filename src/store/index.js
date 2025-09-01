@@ -1,3 +1,4 @@
+// src/store/index.js
 import { configureStore } from '@reduxjs/toolkit';
 import { setupListeners } from '@reduxjs/toolkit/query';
 
@@ -46,7 +47,8 @@ export const store = configureStore({
 // Setup listeners for RTK Query
 setupListeners(store.dispatch);
 
-export type RootState = ReturnType<typeof store.getState>;
-export type AppDispatch = typeof store.dispatch;
+// Export types for TypeScript (optional, can be used if you add TypeScript later)
+// export type RootState = ReturnType<typeof store.getState>;
+// export type AppDispatch = typeof store.dispatch;
 
 export default store;

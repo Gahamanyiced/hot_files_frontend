@@ -72,7 +72,7 @@ const AppLayout = () => {
         </Box>
         
         {/* Footer */}
-        <Footer />
+        {/* <Footer /> */}
       </Box>
       
       {/* Mobile Overlay */}
