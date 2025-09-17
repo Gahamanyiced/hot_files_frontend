@@ -1,4 +1,4 @@
-// src/store/index.js
+// src/store/index.js - Fixed store configuration
 import { configureStore } from '@reduxjs/toolkit';
 import { setupListeners } from '@reduxjs/toolkit/query';
 
@@ -11,9 +11,11 @@ import officeSlice from './slices/officeSlice';
 import customerSlice from './slices/customerSlice';
 import fileSlice from './slices/fileSlice';
 import searchSlice from './slices/searchSlice';
+import errorLogsSlice from './slices/errorLogsSlice';
 
-// RTK Query API slice
+// RTK Query API slices
 import { hotFilesApiSlice } from './api/hotFilesApiSlice';
+import { errorLogsApiSlice } from './api/errorLogsApiSlice';
 
 export const store = configureStore({
   reducer: {
@@ -28,27 +30,59 @@ export const store = configureStore({
     customers: customerSlice,
     files: fileSlice,
     search: searchSlice,
+    errorLogs: errorLogsSlice,
     
     // RTK Query
     [hotFilesApiSlice.reducerPath]: hotFilesApiSlice.reducer,
+    [errorLogsApiSlice.reducerPath]: errorLogsApiSlice.reducer,
   },
   
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {
-        ignoredActions: ['persist/PERSIST'],
-        ignoredPaths: ['files.uploadProgress'],
+        ignoredActions: [
+          'persist/PERSIST',
+          'persist/REHYDRATE',
+          // Ignore RTK Query actions
+          'hotFilesApi/executeQuery/pending',
+          'hotFilesApi/executeQuery/fulfilled',
+          'hotFilesApi/executeQuery/rejected',
+          'hotFilesApi/executeMutation/pending',
+          'hotFilesApi/executeMutation/fulfilled',
+          'hotFilesApi/executeMutation/rejected',
+          'errorLogsApi/executeQuery/pending',
+          'errorLogsApi/executeQuery/fulfilled',
+          'errorLogsApi/executeQuery/rejected',
+          'errorLogsApi/executeMutation/pending',
+          'errorLogsApi/executeMutation/fulfilled',
+          'errorLogsApi/executeMutation/rejected',
+        ],
+        ignoredActionsPaths: ['meta.arg', 'payload.timestamp'],
+        ignoredPaths: [
+          'files.uploadProgress',
+          // Ignore RTK Query internal state
+          'hotFilesApi.queries',
+          'hotFilesApi.mutations',
+          'hotFilesApi.provided',
+          'hotFilesApi.subscriptions',
+          'hotFilesApi.config',
+          'errorLogsApi.queries',
+          'errorLogsApi.mutations',
+          'errorLogsApi.provided',
+          'errorLogsApi.subscriptions',
+          'errorLogsApi.config',
+          // Ignore cache maps
+          'dashboard.cache',
+        ],
       },
-    }).concat(hotFilesApiSlice.middleware),
+    })
+    .concat(hotFilesApiSlice.middleware)
+    .concat(errorLogsApiSlice.middleware),
   
   devTools: import.meta.env.DEV,
 });
 
 // Setup listeners for RTK Query
 setupListeners(store.dispatch);
-
-// Export types for TypeScript (optional, can be used if you add TypeScript later)
-// export type RootState = ReturnType<typeof store.getState>;
-// export type AppDispatch = typeof store.dispatch;
 
 export default store;

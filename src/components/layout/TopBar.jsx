@@ -1,3 +1,4 @@
+// src/components/layout/TopBar.jsx - Fixed syntax error
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -18,7 +19,6 @@ import {
   alpha,
 } from '@mui/material';
 import {
-  Menu as MenuIcon,
   Search as SearchIcon,
   Notifications as NotificationsIcon,
   Brightness4 as DarkModeIcon,
@@ -26,33 +26,25 @@ import {
   AccountCircle as AccountIcon,
   Settings as SettingsIcon,
   Logout as LogoutIcon,
-  Refresh as RefreshIcon,
-  CloudUpload as UploadIcon,
 } from '@mui/icons-material';
+import { useSelector } from 'react-redux';
 
 // Hooks
-import { useAppSelector, useAppDispatch } from '../../hooks/redux';
+import { useAppDispatch, selectUIState } from '../../hooks/redux';
 import {
   toggleDarkMode,
   setSearchQuery,
   addToSearchHistory,
-  addNotification,
 } from '../../store/slices/uiSlice';
 
-const TopBar = ({ onSidebarToggle }) => {
+const TopBar = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useAppDispatch();
 
-  const { darkMode, searchQuery, notifications, sidebarOpen } = useAppSelector(
-    (state) => ({
-      darkMode: state.ui.darkMode,
-      searchQuery: state.ui.searchQuery,
-      notifications: state.ui.notifications,
-      sidebarOpen: state.ui.sidebarOpen,
-    })
-  );
+  // Use memoized selector
+  const { darkMode, notifications, searchQuery } = useSelector(selectUIState);
 
   // Menu states
   const [accountMenuAnchor, setAccountMenuAnchor] = React.useState(null);
@@ -72,21 +64,29 @@ const TopBar = ({ onSidebarToggle }) => {
     if (path.startsWith('/passengers/')) return 'Passenger Details';
     if (path === '/reports') return 'Reports';
     if (path === '/upload') return 'File Upload';
+    if (path === '/error-logs') return 'Error Logs';
+    if (path.startsWith('/error-logs/')) return 'Error Log Details';
     if (path === '/search') return 'Search';
     if (path === '/settings') return 'Settings';
     if (path === '/help') return 'Help';
-    return 'HOT22 Airlines';
+    return 'HOT22 Manager';
+  };
+
+  const handleDarkModeToggle = () => {
+    dispatch(toggleDarkMode());
   };
 
   const handleSearch = (event) => {
-    if (event.key === 'Enter' && searchQuery.trim()) {
-      dispatch(addToSearchHistory(searchQuery.trim()));
-      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    if (event.key === 'Enter') {
+      const query = event.target.value;
+      if (query.trim()) {
+        dispatch(setSearchQuery(query));
+        dispatch(
+          addToSearchHistory({ query, timestamp: new Date().toISOString() })
+        );
+        navigate(`/search?q=${encodeURIComponent(query)}`);
+      }
     }
-  };
-
-  const handleSearchChange = (event) => {
-    dispatch(setSearchQuery(event.target.value));
   };
 
   const handleAccountMenuOpen = (event) => {
@@ -105,79 +105,29 @@ const TopBar = ({ onSidebarToggle }) => {
     setNotificationsAnchor(null);
   };
 
-  const handleThemeToggle = () => {
-    dispatch(toggleDarkMode());
-    dispatch(
-      addNotification({
-        type: 'info',
-        message: `Switched to ${darkMode ? 'light' : 'dark'} mode`,
-        autoHideDuration: 2000,
-      })
-    );
-  };
-
-  const handleRefresh = () => {
-    window.location.reload();
-  };
-
-  const handleUpload = () => {
-    navigate('/upload');
-  };
-
-  const handleSettings = () => {
-    navigate('/settings');
-    handleAccountMenuClose();
-  };
-
-  const handleLogout = () => {
-    // Simple logout - just show notification for now
-    dispatch(
-      addNotification({
-        type: 'info',
-        message: 'Logout functionality coming soon',
-      })
-    );
-    handleAccountMenuClose();
-  };
-
-  const unreadNotifications = notifications.filter((n) => !n.read).length;
-
   return (
     <AppBar
-      position="fixed"
+      position="sticky"
+      elevation={0}
       sx={{
-        zIndex: theme.zIndex.drawer + 1,
-        backgroundColor: theme.palette.background.paper,
-        color: theme.palette.text.primary,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+        backgroundColor: 'transparent',
+        color: 'text.primary',
         borderBottom: `1px solid ${theme.palette.divider}`,
+        backdropFilter: 'blur(8px)',
       }}
     >
       <Toolbar>
-        {/* Menu Button */}
-        <IconButton
-          color="inherit"
-          aria-label="toggle sidebar"
-          onClick={onSidebarToggle}
-          edge="start"
-          sx={{ mr: 2 }}
-        >
-          <MenuIcon />
-        </IconButton>
-
         {/* Page Title */}
-        <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+        <Typography variant="h6" component="div" sx={{ flexGrow: 1, ml: 1 }}>
           {getPageTitle()}
         </Typography>
 
-        {/* Search Bar */}
-        <Box sx={{ flexGrow: 1, maxWidth: 400, mx: 2 }}>
+        {/* Search */}
+        <Box sx={{ display: { xs: 'none', md: 'block' }, mr: 2 }}>
           <TextField
-            fullWidth
             size="small"
-            placeholder="Search transactions, passengers, offices..."
-            value={searchQuery}
-            onChange={handleSearchChange}
+            placeholder="Search..."
+            defaultValue={searchQuery}
             onKeyPress={handleSearch}
             InputProps={{
               startAdornment: (
@@ -185,43 +135,23 @@ const TopBar = ({ onSidebarToggle }) => {
                   <SearchIcon />
                 </InputAdornment>
               ),
-              sx: {
-                backgroundColor: alpha(theme.palette.common.white, 0.15),
-                '&:hover': {
-                  backgroundColor: alpha(theme.palette.common.white, 0.25),
-                },
-                borderRadius: 2,
-              },
             }}
             sx={{
               '& .MuiOutlinedInput-root': {
-                '& fieldset': {
-                  border: 'none',
+                backgroundColor: alpha(theme.palette.common.white, 0.15),
+                '&:hover': {
+                  backgroundColor: alpha(theme.palette.common.white, 0.25),
                 },
               },
             }}
           />
         </Box>
 
-        {/* Action Buttons */}
+        {/* Actions */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {/* Upload Button */}
-          <Tooltip title="Upload HOT22 File">
-            <IconButton color="inherit" onClick={handleUpload}>
-              <UploadIcon />
-            </IconButton>
-          </Tooltip>
-
-          {/* Refresh Button */}
-          <Tooltip title="Refresh Data">
-            <IconButton color="inherit" onClick={handleRefresh}>
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-
-          {/* Theme Toggle */}
-          <Tooltip title={`Switch to ${darkMode ? 'light' : 'dark'} mode`}>
-            <IconButton color="inherit" onClick={handleThemeToggle}>
+          {/* Dark Mode Toggle */}
+          <Tooltip title={darkMode ? 'Light Mode' : 'Dark Mode'}>
+            <IconButton color="inherit" onClick={handleDarkModeToggle}>
               {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
             </IconButton>
           </Tooltip>
@@ -229,7 +159,7 @@ const TopBar = ({ onSidebarToggle }) => {
           {/* Notifications */}
           <Tooltip title="Notifications">
             <IconButton color="inherit" onClick={handleNotificationsOpen}>
-              <Badge badgeContent={unreadNotifications} color="error">
+              <Badge badgeContent={notifications.length} color="error">
                 <NotificationsIcon />
               </Badge>
             </IconButton>
@@ -238,15 +168,7 @@ const TopBar = ({ onSidebarToggle }) => {
           {/* Account Menu */}
           <Tooltip title="Account">
             <IconButton color="inherit" onClick={handleAccountMenuOpen}>
-              <Avatar
-                sx={{
-                  width: 32,
-                  height: 32,
-                  bgcolor: theme.palette.primary.main,
-                }}
-              >
-                A
-              </Avatar>
+              <AccountIcon />
             </IconButton>
           </Tooltip>
         </Box>
@@ -256,18 +178,25 @@ const TopBar = ({ onSidebarToggle }) => {
           anchorEl={accountMenuAnchor}
           open={Boolean(accountMenuAnchor)}
           onClose={handleAccountMenuClose}
-          transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-          anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+          anchorOrigin={{
+            vertical: 'bottom',
+            horizontal: 'right',
+          }}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
         >
-          <MenuItem onClick={handleAccountMenuClose}>
-            <AccountIcon sx={{ mr: 2 }} />
-            Profile
-          </MenuItem>
-          <MenuItem onClick={handleSettings}>
+          <MenuItem
+            onClick={() => {
+              handleAccountMenuClose();
+              navigate('/settings');
+            }}
+          >
             <SettingsIcon sx={{ mr: 2 }} />
             Settings
           </MenuItem>
-          <MenuItem onClick={handleLogout}>
+          <MenuItem onClick={handleAccountMenuClose}>
             <LogoutIcon sx={{ mr: 2 }} />
             Logout
           </MenuItem>
@@ -278,57 +207,32 @@ const TopBar = ({ onSidebarToggle }) => {
           anchorEl={notificationsAnchor}
           open={Boolean(notificationsAnchor)}
           onClose={handleNotificationsClose}
-          transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-          anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-          PaperProps={{
-            sx: { width: 320, maxHeight: 400 },
+          anchorOrigin={{
+            vertical: 'bottom',
+            horizontal: 'right',
+          }}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
           }}
         >
           {notifications.length === 0 ? (
-            <MenuItem>
-              <Typography variant="body2" color="text.secondary">
-                No notifications
-              </Typography>
+            <MenuItem disabled>
+              <Typography variant="body2">No notifications</Typography>
             </MenuItem>
           ) : (
-            notifications.slice(0, 5).map((notification) => (
-              <MenuItem
-                key={notification.id}
-                onClick={handleNotificationsClose}
-              >
-                <Box sx={{ width: '100%' }}>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      mb: 0.5,
-                    }}
-                  >
-                    <Typography variant="subtitle2" noWrap>
-                      {notification.title || 'Notification'}
-                    </Typography>
-                    <Chip
-                      label={notification.type}
-                      size="small"
-                      color={
-                        notification.type === 'error' ? 'error' : 'primary'
-                      }
-                      sx={{ ml: 1 }}
-                    />
-                  </Box>
-                  <Typography variant="body2" color="text.secondary" noWrap>
+            notifications.slice(0, 5).map((notification, index) => (
+              <MenuItem key={index} onClick={handleNotificationsClose}>
+                <Box>
+                  <Typography variant="body2">
                     {notification.message}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {new Date(notification.timestamp).toLocaleTimeString()}
                   </Typography>
                 </Box>
               </MenuItem>
             ))
-          )}
-          {notifications.length > 5 && (
-            <MenuItem onClick={() => navigate('/notifications')}>
-              <Typography variant="body2" color="primary">
-                View all notifications
-              </Typography>
-            </MenuItem>
           )}
         </Menu>
       </Toolbar>

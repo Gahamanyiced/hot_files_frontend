@@ -1,3 +1,4 @@
+// src/App.jsx - Updated to include Error Logs routes
 import React from 'react';
 import {
   BrowserRouter as Router,
@@ -36,6 +37,8 @@ import FileUpload from './pages/FileUpload';
 import Search from './pages/Search';
 import Settings from './pages/Settings';
 import Help from './pages/Help';
+import ErrorLogs from './pages/ErrorLogs'; // New Error Logs page
+import ErrorLogDetails from './pages/ErrorLogDetails'; // New Error Log Details page
 
 // Hooks
 import { useAppSelector } from './hooks/redux';
@@ -56,81 +59,35 @@ const createAppTheme = (darkMode, primaryColor) =>
         paper: darkMode ? '#1e1e1e' : '#ffffff',
       },
     },
-    typography: {
-      fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-      h1: {
-        fontSize: '2.5rem',
-        fontWeight: 600,
-      },
-      h2: {
-        fontSize: '2rem',
-        fontWeight: 600,
-      },
-      h3: {
-        fontSize: '1.75rem',
-        fontWeight: 600,
-      },
-      h4: {
-        fontSize: '1.5rem',
-        fontWeight: 500,
-      },
-      h5: {
-        fontSize: '1.25rem',
-        fontWeight: 500,
-      },
-      h6: {
-        fontSize: '1rem',
-        fontWeight: 500,
-      },
-    },
     components: {
-      MuiButton: {
+      MuiCssBaseline: {
         styleOverrides: {
-          root: {
-            textTransform: 'none',
-            borderRadius: 8,
-          },
-        },
-      },
-      MuiPaper: {
-        styleOverrides: {
-          root: {
-            borderRadius: 12,
-          },
-        },
-      },
-      MuiCard: {
-        styleOverrides: {
-          root: {
-            borderRadius: 12,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          },
-        },
-      },
-      MuiDataGrid: {
-        styleOverrides: {
-          root: {
-            border: 'none',
-            borderRadius: 12,
+          body: {
+            scrollbarColor: '#6b6b6b #2b2b2b',
+            '&::-webkit-scrollbar, & *::-webkit-scrollbar': {
+              backgroundColor: darkMode ? '#2b2b2b' : '#f1f1f1',
+              width: 8,
+            },
+            '&::-webkit-scrollbar-thumb, & *::-webkit-scrollbar-thumb': {
+              backgroundColor: darkMode ? '#6b6b6b' : '#c1c1c1',
+              borderRadius: 8,
+            },
           },
         },
       },
     },
   });
 
-function App() {
-  return (
-    <ErrorBoundary>
-      <Provider store={store}>
-        <AppContent />
-      </Provider>
-    </ErrorBoundary>
+// Main App Component with Provider
+const AppWithProviders = () => {
+  const { darkMode, primaryColor } = useAppSelector(
+    (state) => state.ui.theme || { darkMode: false, primaryColor: '#1976d2' }
   );
-}
 
-function AppContent() {
-  const { darkMode, primaryColor } = useAppSelector((state) => state.ui);
-  const theme = createAppTheme(darkMode, primaryColor);
+  const theme = React.useMemo(
+    () => createAppTheme(darkMode, primaryColor),
+    [darkMode, primaryColor]
+  );
 
   return (
     <ThemeProvider theme={theme}>
@@ -142,72 +99,91 @@ function AppContent() {
             vertical: 'top',
             horizontal: 'right',
           }}
-          autoHideDuration={5000}
         >
-          <Router>
-            <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-              <AppRoutes />
-              <LoadingOverlay />
-              <NotificationManager />
-            </Box>
-          </Router>
+          <ErrorBoundary>
+            <Router>
+              <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+                <AppLayout>
+                  <Routes>
+                    {/* Dashboard */}
+                    <Route
+                      path="/"
+                      element={<Navigate to="/dashboard" replace />}
+                    />
+                    <Route path="/dashboard" element={<Dashboard />} />
+
+                    {/* Transactions */}
+                    <Route path="/transactions" element={<Transactions />} />
+                    <Route
+                      path="/transactions/:transactionNumber"
+                      element={<TransactionDetails />}
+                    />
+                    <Route
+                      path="/tickets/:ticketNumber"
+                      element={<TicketDetails />}
+                    />
+
+                    {/* Analytics */}
+                    <Route path="/analytics" element={<Analytics />} />
+
+                    {/* Offices */}
+                    <Route path="/offices" element={<Offices />} />
+                    <Route
+                      path="/offices/:agentCode"
+                      element={<OfficeDetails />}
+                    />
+
+                    {/* Passengers */}
+                    <Route path="/passengers" element={<Passengers />} />
+                    <Route
+                      path="/passengers/:transactionNumber"
+                      element={<PassengerDetails />}
+                    />
+
+                    {/* Reports */}
+                    <Route path="/reports" element={<Reports />} />
+
+                    {/* File Management */}
+                    <Route path="/upload" element={<FileUpload />} />
+
+                    {/* Error Logs - New Routes */}
+                    <Route path="/error-logs" element={<ErrorLogs />} />
+                    <Route
+                      path="/error-logs/:uploadId"
+                      element={<ErrorLogDetails />}
+                    />
+
+                    {/* Search */}
+                    <Route path="/search" element={<Search />} />
+
+                    {/* Settings & Help */}
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/help" element={<Help />} />
+
+                    {/* 404 fallback */}
+                    <Route
+                      path="*"
+                      element={<Navigate to="/dashboard" replace />}
+                    />
+                  </Routes>
+                </AppLayout>
+                <NotificationManager />
+              </Box>
+            </Router>
+          </ErrorBoundary>
         </SnackbarProvider>
       </LocalizationProvider>
     </ThemeProvider>
   );
-}
+};
 
-function AppRoutes() {
+// Root App Component
+const App = () => {
   return (
-    <Routes>
-      {/* Main App Routes with Layout */}
-      <Route path="/" element={<AppLayout />}>
-        {/* Dashboard */}
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={<Dashboard />} />
-
-        {/* Transactions */}
-        <Route path="transactions" element={<Transactions />} />
-        <Route
-          path="transactions/:transactionNumber"
-          element={<TransactionDetails />}
-        />
-        <Route path="tickets/:ticketNumber" element={<TicketDetails />} />
-
-        {/* Analytics */}
-        <Route path="analytics" element={<Analytics />} />
-
-        {/* Offices */}
-        <Route path="offices" element={<Offices />} />
-        <Route path="offices/:agentCode" element={<OfficeDetails />} />
-
-        {/* Passengers */}
-        <Route path="passengers" element={<Passengers />} />
-        <Route
-          path="passengers/:transactionNumber"
-          element={<PassengerDetails />}
-        />
-
-        {/* Reports */}
-        <Route path="reports" element={<Reports />} />
-
-        {/* File Management */}
-        <Route path="upload" element={<FileUpload />} />
-
-        {/* Search */}
-        <Route path="search" element={<Search />} />
-
-        {/* Settings */}
-        <Route path="settings" element={<Settings />} />
-
-        {/* Help */}
-        <Route path="help" element={<Help />} />
-      </Route>
-
-      {/* 404 Route */}
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
-    </Routes>
+    <Provider store={store}>
+      <AppWithProviders />
+    </Provider>
   );
-}
+};
 
 export default App;

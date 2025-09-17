@@ -1,5 +1,5 @@
+// src/components/layout/Sidebar.jsx - Updated with hamburger menu toggle
 import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Drawer,
   List,
@@ -7,20 +7,20 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Typography,
   Box,
+  Typography,
   Divider,
-  Avatar,
-  useTheme,
   Collapse,
+  useTheme,
   IconButton,
+  Tooltip,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
-  Receipt as TransactionIcon,
+  Receipt as TransactionsIcon,
   Analytics as AnalyticsIcon,
-  Business as OfficeIcon,
-  People as PeopleIcon,
+  Business as OfficesIcon,
+  People as PassengersIcon,
   Assessment as ReportsIcon,
   CloudUpload as UploadIcon,
   Search as SearchIcon,
@@ -28,172 +28,193 @@ import {
   Help as HelpIcon,
   ExpandLess,
   ExpandMore,
-  ChevronLeft,
-  FlightTakeoff,
+  Error as ErrorIcon,
+  BugReport as ErrorLogsIcon,
+  Menu as MenuIcon, // Add hamburger menu icon
+  MenuOpen as MenuOpenIcon, // Add open menu icon
 } from '@mui/icons-material';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 // Hooks
 import { useAppSelector, useAppDispatch } from '../../hooks/redux';
 import { setSidebarOpen } from '../../store/slices/uiSlice';
 
+const DRAWER_WIDTH = 280;
+
 const navigationItems = [
   {
     id: 'dashboard',
-    title: 'Dashboard',
+    label: 'Dashboard',
     icon: DashboardIcon,
     path: '/dashboard',
   },
   {
-    id: 'transactions',
-    title: 'Transactions',
-    icon: TransactionIcon,
-    path: '/transactions',
+    id: 'data-management',
+    label: 'Data Management',
+    icon: TransactionsIcon,
     children: [
-      { id: 'all-transactions', title: 'All Transactions', path: '/transactions' },
-      { id: 'recent-transactions', title: 'Recent', path: '/transactions?filter=recent' },
+      {
+        id: 'transactions',
+        label: 'Transactions',
+        icon: TransactionsIcon,
+        path: '/transactions',
+      },
+      {
+        id: 'offices',
+        label: 'Offices',
+        icon: OfficesIcon,
+        path: '/offices',
+      },
+      {
+        id: 'passengers',
+        label: 'Passengers',
+        icon: PassengersIcon,
+        path: '/passengers',
+      },
     ],
   },
   {
     id: 'analytics',
-    title: 'Analytics',
+    label: 'Analytics',
     icon: AnalyticsIcon,
     path: '/analytics',
-    children: [
-      { id: 'revenue-analytics', title: 'Revenue', path: '/analytics?tab=revenue' },
-      { id: 'commission-analytics', title: 'Commission', path: '/analytics?tab=commission' },
-      { id: 'performance-analytics', title: 'Performance', path: '/analytics?tab=performance' },
-    ],
-  },
-  {
-    id: 'offices',
-    title: 'Offices',
-    icon: OfficeIcon,
-    path: '/offices',
-  },
-  {
-    id: 'passengers',
-    title: 'Passengers',
-    icon: PeopleIcon,
-    path: '/passengers',
   },
   {
     id: 'reports',
-    title: 'Reports',
+    label: 'Reports',
     icon: ReportsIcon,
     path: '/reports',
   },
   {
-    id: 'upload',
-    title: 'File Upload',
+    id: 'file-management',
+    label: 'File Management',
     icon: UploadIcon,
-    path: '/upload',
+    children: [
+      {
+        id: 'upload',
+        label: 'File Upload',
+        icon: UploadIcon,
+        path: '/upload',
+      },
+      {
+        id: 'error-logs',
+        label: 'Error Logs',
+        icon: ErrorLogsIcon,
+        path: '/error-logs',
+      },
+    ],
   },
   {
     id: 'search',
-    title: 'Search',
+    label: 'Search',
     icon: SearchIcon,
     path: '/search',
   },
-];
-
-const bottomNavigationItems = [
   {
     id: 'settings',
-    title: 'Settings',
+    label: 'Settings',
     icon: SettingsIcon,
     path: '/settings',
   },
   {
     id: 'help',
-    title: 'Help',
+    label: 'Help',
     icon: HelpIcon,
     path: '/help',
   },
 ];
 
-const Sidebar = ({ open, onToggle, isMobile }) => {
+const Sidebar = () => {
   const theme = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  
-  const { sidebarWidth } = useAppSelector((state) => ({
-    sidebarWidth: state.ui.sidebarWidth,
-  }));
 
-  const [expandedItems, setExpandedItems] = React.useState({});
+  const { sidebarOpen } = useAppSelector((state) => state.ui);
+  const [expandedItems, setExpandedItems] = React.useState({
+    'data-management': true,
+    'file-management': true,
+  });
+
+  const handleSidebarToggle = () => {
+    dispatch(setSidebarOpen(!sidebarOpen));
+  };
 
   const handleItemClick = (item) => {
     if (item.children) {
-      setExpandedItems(prev => ({
+      setExpandedItems((prev) => ({
         ...prev,
         [item.id]: !prev[item.id],
       }));
-    } else {
+    } else if (item.path) {
       navigate(item.path);
-      if (isMobile) {
+      // Close sidebar on mobile
+      if (window.innerWidth < theme.breakpoints.values.md) {
         dispatch(setSidebarOpen(false));
       }
     }
   };
 
-  const isActiveRoute = (path) => {
-    return location.pathname === path || location.pathname.startsWith(path + '/');
+  const isItemActive = (path) => {
+    if (path === '/dashboard') {
+      return location.pathname === '/' || location.pathname === '/dashboard';
+    }
+    return location.pathname.startsWith(path);
   };
 
-  const renderNavigationItem = (item, isChild = false) => {
-    const isActive = isActiveRoute(item.path);
-    const isExpanded = expandedItems[item.id];
+  const isParentActive = (children) => {
+    return children?.some((child) => isItemActive(child.path));
+  };
+
+  const renderNavigationItem = (item, level = 0) => {
     const Icon = item.icon;
+    const hasChildren = item.children && item.children.length > 0;
+    const isExpanded = expandedItems[item.id];
+    const isActive = item.path
+      ? isItemActive(item.path)
+      : isParentActive(item.children);
 
     return (
       <React.Fragment key={item.id}>
-        <ListItem disablePadding sx={{ display: 'block' }}>
+        <ListItem disablePadding>
           <ListItemButton
             onClick={() => handleItemClick(item)}
             sx={{
-              minHeight: 48,
-              justifyContent: open ? 'initial' : 'center',
-              px: 2.5,
-              pl: isChild ? 4 : 2.5,
-              backgroundColor: isActive ? theme.palette.primary.main : 'transparent',
-              color: isActive ? theme.palette.primary.contrastText : 'inherit',
+              pl: 2 + level * 2,
+              backgroundColor:
+                isActive && !hasChildren ? 'action.selected' : 'transparent',
               '&:hover': {
-                backgroundColor: isActive 
-                  ? theme.palette.primary.dark 
-                  : theme.palette.action.hover,
+                backgroundColor: 'action.hover',
               },
-              borderRadius: 1,
-              mx: 1,
-              mb: 0.5,
             }}
           >
-            {Icon && (
-              <ListItemIcon
-                sx={{
-                  minWidth: 0,
-                  mr: open ? 3 : 'auto',
-                  justifyContent: 'center',
-                  color: isActive ? theme.palette.primary.contrastText : 'inherit',
-                }}
-              >
-                <Icon />
-              </ListItemIcon>
-            )}
+            <ListItemIcon
+              sx={{
+                color: isActive ? 'primary.main' : 'text.secondary',
+                minWidth: 40,
+              }}
+            >
+              <Icon />
+            </ListItemIcon>
             <ListItemText
-              primary={item.title}
-              sx={{ opacity: open ? 1 : 0 }}
+              primary={item.label}
+              sx={{
+                '& .MuiListItemText-primary': {
+                  fontWeight: isActive ? 600 : 400,
+                  color: isActive ? 'primary.main' : 'text.primary',
+                },
+              }}
             />
-            {item.children && open && (
-              isExpanded ? <ExpandLess /> : <ExpandMore />
-            )}
+            {hasChildren && (isExpanded ? <ExpandLess /> : <ExpandMore />)}
           </ListItemButton>
         </ListItem>
-        
-        {item.children && (
-          <Collapse in={isExpanded && open} timeout="auto" unmountOnExit>
+
+        {hasChildren && (
+          <Collapse in={isExpanded} timeout="auto" unmountOnExit>
             <List component="div" disablePadding>
-              {item.children.map((child) => renderNavigationItem(child, true))}
+              {item.children.map((child) =>
+                renderNavigationItem(child, level + 1)
+              )}
             </List>
           </Collapse>
         )}
@@ -201,122 +222,71 @@ const Sidebar = ({ open, onToggle, isMobile }) => {
     );
   };
 
-  const drawerContent = (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: open ? 'space-between' : 'center',
-          padding: theme.spacing(2),
-          minHeight: 64,
-        }}
-      >
-        {open && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <FlightTakeoff color="primary" />
-            <Typography variant="h6" color="primary" fontWeight="bold">
-              HOT22
-            </Typography>
-          </Box>
-        )}
-        {!isMobile && (
-          <IconButton onClick={onToggle} size="small">
-            <ChevronLeft />
-          </IconButton>
-        )}
-      </Box>
-
-      <Divider />
-
-      {/* Main Navigation */}
-      <Box sx={{ flexGrow: 1, overflowY: 'auto', py: 1 }}>
-        <List>
-          {navigationItems.map((item) => renderNavigationItem(item))}
-        </List>
-      </Box>
-
-      <Divider />
-
-      {/* Bottom Navigation */}
-      <Box>
-        <List>
-          {bottomNavigationItems.map((item) => renderNavigationItem(item))}
-        </List>
-      </Box>
-
-      {/* User Info */}
-      {open && (
-        <Box
-          sx={{
-            p: 2,
-            backgroundColor: theme.palette.background.paper,
-            borderTop: 1,
-            borderColor: 'divider',
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Avatar sx={{ width: 32, height: 32, bgcolor: theme.palette.primary.main }}>
-              A
-            </Avatar>
-            <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-              <Typography variant="subtitle2" noWrap>
-                Administrator
-              </Typography>
-              <Typography variant="caption" color="text.secondary" noWrap>
-                admin@hot22.com
-              </Typography>
-            </Box>
-          </Box>
-        </Box>
-      )}
-    </Box>
-  );
-
-  if (isMobile) {
-    return (
-      <Drawer
-        variant="temporary"
-        open={open}
-        onClose={onToggle}
-        ModalProps={{
-          keepMounted: true, // Better open performance on mobile
-        }}
-        sx={{
-          '& .MuiDrawer-paper': {
-            boxSizing: 'border-box',
-            width: sidebarWidth,
-            backgroundColor: theme.palette.background.paper,
-          },
-        }}
-      >
-        {drawerContent}
-      </Drawer>
-    );
-  }
-
   return (
     <Drawer
-      variant="permanent"
-      open={open}
+      variant="persistent"
+      anchor="left"
+      open={sidebarOpen}
       sx={{
-        width: open ? sidebarWidth : theme.spacing(7),
+        width: sidebarOpen ? DRAWER_WIDTH : 0,
         flexShrink: 0,
-        whiteSpace: 'nowrap',
         '& .MuiDrawer-paper': {
-          width: open ? sidebarWidth : theme.spacing(7),
-          transition: theme.transitions.create('width', {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.enteringScreen,
-          }),
-          overflowX: 'hidden',
-          backgroundColor: theme.palette.background.paper,
+          width: DRAWER_WIDTH,
+          boxSizing: 'border-box',
           borderRight: `1px solid ${theme.palette.divider}`,
         },
       }}
     >
-      {drawerContent}
+      {/* Header with Logo and Hamburger Menu */}
+      <Box
+        sx={{
+          p: 2,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <Box sx={{ textAlign: 'left', flex: 1 }}>
+          <Typography variant="h6" component="div" fontWeight="bold">
+            HOT22 Manager
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Airlines Data Management
+          </Typography>
+        </Box>
+
+        {/* Hamburger Menu Toggle */}
+        <Tooltip title={sidebarOpen ? 'Collapse Sidebar' : 'Expand Sidebar'}>
+          <IconButton
+            onClick={handleSidebarToggle}
+            size="small"
+            sx={{
+              color: 'text.secondary',
+              '&:hover': {
+                backgroundColor: 'action.hover',
+              },
+            }}
+          >
+            {sidebarOpen ? <MenuOpenIcon /> : <MenuIcon />}
+          </IconButton>
+        </Tooltip>
+      </Box>
+
+      <Divider />
+
+      {/* Navigation */}
+      <List sx={{ flexGrow: 1, py: 2 }}>
+        {navigationItems.map((item) => renderNavigationItem(item))}
+      </List>
+
+      <Divider />
+
+      {/* Footer */}
+      <Box sx={{ p: 2, textAlign: 'center' }}>
+        <Typography variant="caption" color="text.secondary">
+          Version 1.0.0
+        </Typography>
+      </Box>
     </Drawer>
   );
 };

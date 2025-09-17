@@ -15,7 +15,7 @@ const baseQuery = fetchBaseQuery({
 // Enhanced base query with error handling
 const baseQueryWithErrorHandling = async (args, api, extraOptions) => {
   const result = await baseQuery(args, api, extraOptions);
-  
+
   if (result.error) {
     // Handle different error types
     if (result.error.status === 401) {
@@ -26,7 +26,7 @@ const baseQueryWithErrorHandling = async (args, api, extraOptions) => {
       console.error('Network error:', result.error.error);
     }
   }
-  
+
   return result;
 };
 
@@ -139,7 +139,8 @@ export const hotFilesApiSlice = createApi({
     }),
 
     getPassengerHistory: builder.query({
-      query: (transactionNumber) => `/api/passengers/${transactionNumber}/history`,
+      query: (transactionNumber) =>
+        `/api/passengers/${transactionNumber}/history`,
       providesTags: (result, error, transactionNumber) => [
         { type: 'Passenger', id: transactionNumber },
       ],
@@ -219,7 +220,14 @@ export const hotFilesApiSlice = createApi({
         url: '/records/all',
         method: 'DELETE',
       }),
-      invalidatesTags: ['File', 'Dashboard', 'Analytics', 'Transaction', 'Office', 'Passenger'],
+      invalidatesTags: [
+        'File',
+        'Dashboard',
+        'Analytics',
+        'Transaction',
+        'Office',
+        'Passenger',
+      ],
     }),
 
     // Search Endpoints
@@ -271,6 +279,119 @@ export const hotFilesApiSlice = createApi({
     checkHealth: builder.query({
       query: () => '/health',
       providesTags: ['Health'],
+    }),
+
+    // Error Log Endpoints
+    getErrorLogs: builder.query({
+      query: (params) => ({
+        url: '/api/error-logs',
+        params,
+      }),
+      providesTags: (result) =>
+        result?.data
+          ? [
+              ...result.data.map(({ uploadId }) => ({
+                type: 'ErrorLog',
+                id: uploadId,
+              })),
+              { type: 'ErrorLog', id: 'LIST' },
+            ]
+          : [{ type: 'ErrorLog', id: 'LIST' }],
+    }),
+
+    getErrorLogDetails: builder.query({
+      query: (uploadId) => `/api/error-logs/${uploadId}`,
+      providesTags: (result, error, uploadId) => [
+        { type: 'ErrorLog', id: uploadId },
+      ],
+    }),
+
+    getErrorLogStats: builder.query({
+      query: (params) => ({
+        url: '/api/error-logs/stats/summary',
+        params,
+      }),
+      providesTags: ['ErrorLog'],
+    }),
+
+    exportErrorLogs: builder.query({
+      query: (params) => ({
+        url: '/api/error-logs/export',
+        params,
+        responseHandler: (response) => {
+          // Handle file download
+          const contentDisposition = response.headers.get(
+            'content-disposition'
+          );
+          const filename = contentDisposition
+            ? contentDisposition.split('filename=')[1]?.replace(/"/g, '')
+            : 'error-logs.csv';
+
+          return response.blob().then((blob) => ({ blob, filename }));
+        },
+      }),
+      providesTags: ['ErrorLog'],
+    }),
+
+    searchErrorLogs: builder.query({
+      query: (params) => ({
+        url: '/api/error-logs/search',
+        params,
+      }),
+      providesTags: ['ErrorLog'],
+    }),
+
+    getErrorLogsByType: builder.query({
+      query: ({ recordType, ...params }) => ({
+        url: `/api/error-logs/by-type/${recordType}`,
+        params,
+      }),
+      providesTags: (result, error, { recordType }) => [
+        { type: 'ErrorLog', id: recordType },
+      ],
+    }),
+
+    getErrorLogDashboard: builder.query({
+      query: (params) => ({
+        url: '/api/error-logs/dashboard',
+        params,
+      }),
+      providesTags: ['ErrorLog'],
+    }),
+
+    getRealtimeMonitoring: builder.query({
+      query: (params) => ({
+        url: '/api/error-logs/monitor/realtime',
+        params,
+      }),
+      providesTags: ['ErrorLog'],
+    }),
+
+    bulkDeleteErrorLogs: builder.mutation({
+      query: (data) => ({
+        url: '/api/error-logs/bulk',
+        method: 'POST',
+        body: { ...data, operation: 'delete' },
+      }),
+      invalidatesTags: ['ErrorLog'],
+    }),
+
+    bulkExportErrorLogs: builder.mutation({
+      query: (data) => ({
+        url: '/api/error-logs/bulk',
+        method: 'POST',
+        body: { ...data, operation: 'export' },
+      }),
+      invalidatesTags: ['ErrorLog'],
+    }),
+
+    cleanupErrorLogs: builder.mutation({
+      query: (params) => ({
+        url: '/api/error-logs/cleanup',
+        method: 'DELETE',
+        params,
+      }),
+      invalidatesTags: ['ErrorLog'],
     }),
   }),
 });
