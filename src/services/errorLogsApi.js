@@ -2,64 +2,90 @@
 import { apiClient } from './api';
 
 // Error Logs API Services
-export const errorLogsApi = {
+ const errorLogsApi = {
   // Get error logs with advanced filtering
-  getErrorLogs: (params) => 
-    apiClient.get('/api/error-logs', { params }),
-  
+  getErrorLogs: (params) => apiClient.get('/api/error-logs', { params }),
+
   // Get specific upload log details
-  getErrorLogDetails: (uploadId) => 
-    apiClient.get(`/api/error-logs/${uploadId}`),
-  
+  getErrorLogDetails: (uploadId, params = {}) => {
+    // Build query string from params
+    const queryParams = new URLSearchParams();
+
+    if (params.page) queryParams.append('page', params.page.toString());
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.recordType) queryParams.append('recordType', params.recordType);
+    if (params.errorType) queryParams.append('errorType', params.errorType);
+
+    const queryString = queryParams.toString();
+    const url = queryString
+      ? `/api/error-logs/${uploadId}?${queryString}`
+      : `/api/error-logs/${uploadId}`;
+
+    return apiClient.get(url);
+  },
+
+  exportErrors: (uploadId, params = {}) => {
+    const queryParams = new URLSearchParams({
+      format: 'csv',
+      ...params
+    });
+    
+    return apiClient.get(
+      `/api/error-logs/${uploadId}/export?${queryParams.toString()}`,
+      { responseType: 'blob' }
+    );
+  },
+
   // Get error statistics
-  getErrorStats: (params) => 
+  getErrorStats: (params) =>
     apiClient.get('/api/error-logs/stats/summary', { params }),
-  
+
   // Export error logs
-  exportErrorLogs: (params) => 
+  exportErrorLogs: (params) =>
     apiClient.get('/api/error-logs/export', { params }),
-  
+
   // Download error logs file
-  downloadErrorLogs: (params, filename) => 
+  downloadErrorLogs: (params, filename) =>
     apiClient.downloadFile('/api/error-logs/export', filename, { params }),
-  
+
   // Get error logs by record type
-  getErrorLogsByType: (recordType, params) => 
+  getErrorLogsByType: (recordType, params) =>
     apiClient.get(`/api/error-logs/by-type/${recordType}`, { params }),
-  
+
   // Search error logs
-  searchErrorLogs: (params) => 
+  searchErrorLogs: (params) =>
     apiClient.get('/api/error-logs/search', { params }),
-  
+
   // Get dashboard summary
-  getDashboardSummary: (params) => 
+  getDashboardSummary: (params) =>
     apiClient.get('/api/error-logs/dashboard', { params }),
-  
+
   // Get real-time monitoring data
-  getRealtimeMonitoring: (params) => 
+  getRealtimeMonitoring: (params) =>
     apiClient.get('/api/error-logs/monitor/realtime', { params }),
-  
+
   // Cleanup old error logs (Admin)
-  cleanupErrorLogs: (params) => 
+  cleanupErrorLogs: (params) =>
     apiClient.delete('/api/error-logs/cleanup', { params }),
-  
+
   // Bulk operations on error logs
-  bulkOperationErrorLogs: (body) => 
+  bulkOperationErrorLogs: (body) =>
     apiClient.post('/api/error-logs/bulk', body),
-  
+
   // Bulk delete error logs
-  bulkDeleteErrorLogs: (uploadIds) => 
+  bulkDeleteErrorLogs: (uploadIds) =>
     apiClient.post('/api/error-logs/bulk', {
       uploadIds,
-      operation: 'delete'
+      operation: 'delete',
+    }),
+
+  // Bulk export error logs
+  bulkExportErrorLogs: (uploadIds) =>
+    apiClient.post('/api/error-logs/bulk', {
+      uploadIds,
+      operation: 'export',
     }),
   
-  // Bulk export error logs
-  bulkExportErrorLogs: (uploadIds) => 
-    apiClient.post('/api/error-logs/bulk', {
-      uploadIds,
-      operation: 'export'
-    }),
 };
 
 // Add to main hotFilesApi.js exports

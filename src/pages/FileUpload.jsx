@@ -60,27 +60,23 @@ import {
 import { addNotification } from '../store/slices/uiSlice';
 
 // Utils
-import { formatFileSize, formatDuration, formatNumber, formatDate } from '../utils/formatters';
+import {
+  formatFileSize,
+  formatDuration,
+  formatNumber,
+  formatDate,
+} from '../utils/formatters';
 
 const FileUpload = () => {
   const theme = useTheme();
   const dispatch = useAppDispatch();
-  
-  const {
-    upload,
-    stats,
-    ui,
-    health,
-    processing,
-  } = useAppSelector((state) => state.files);
+  const [selectedFile, setSelectedFile] = React.useState(null);
 
-  const {
-    loading,
-    progress,
-    error,
-    result,
-    currentFile,
-  } = upload;
+  const { upload, stats, ui, health, processing } = useAppSelector(
+    (state) => state.files
+  );
+
+  const { loading, progress, error, result, currentFile } = upload;
 
   const fileInputRef = React.useRef(null);
   const [showDetails, setShowDetails] = React.useState(false);
@@ -101,59 +97,71 @@ const FileUpload = () => {
   };
 
   const validateAndSetFile = (file) => {
-    // Validate file type
-    if (!file.name.toLowerCase().endsWith('.txt')) {
-      dispatch(addNotification({
-        type: 'error',
-        message: 'Please select a valid HOT22 text file (.txt)',
-      }));
-      return;
-    }
-
-    // Validate file size (max 100MB)
+    // Only validate file size (max 100MB) - accept all file types/extensions
     const maxSize = 100 * 1024 * 1024; // 100MB
     if (file.size > maxSize) {
-      dispatch(addNotification({
-        type: 'error',
-        message: 'File size exceeds 100MB limit',
-      }));
+      dispatch(
+        addNotification({
+          type: 'error',
+          message: 'File size exceeds 100MB limit',
+        })
+      );
       return;
     }
 
-    dispatch(setCurrentFile(file));
+    // Store actual File object locally
+    setSelectedFile(file);
+
+    // Store only serializable data in Redux
+    dispatch(
+      setCurrentFile({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified,
+      })
+    );
+
     dispatch(clearUploadResult());
   };
 
   const handleUpload = () => {
-    if (!currentFile) return;
+    // Use the local File object for upload
+    if (!selectedFile) return;
 
     const onProgress = (progressValue) => {
       // Progress is handled by Redux, but we can add additional logic here
     };
 
-    dispatch(uploadHot22File({ file: currentFile, onProgress }))
+    dispatch(uploadHot22File({ file: selectedFile, onProgress }))
       .unwrap()
       .then((response) => {
-        dispatch(addNotification({
-          type: 'success',
-          message: `File uploaded successfully! Processed ${response.results?.summary?.totalSaved || 0} records.`,
-        }));
+        dispatch(
+          addNotification({
+            type: 'success',
+            message: `File uploaded successfully! Processed ${
+              response.results?.summary?.totalSaved || 0
+            } records.`,
+          })
+        );
         // Refresh stats after successful upload
         dispatch(fetchFileStats());
         dispatch(checkHealth());
       })
       .catch((error) => {
-        dispatch(addNotification({
-          type: 'error',
-          message: `Upload failed: ${error.message || 'Unknown error'}`,
-        }));
+        dispatch(
+          addNotification({
+            type: 'error',
+            message: `Upload failed: ${error.message || 'Unknown error'}`,
+          })
+        );
       });
   };
 
   const handleDrop = (event) => {
     event.preventDefault();
     setDragActive(false);
-    
+
     const file = event.dataTransfer.files[0];
     if (file) {
       validateAndSetFile(file);
@@ -171,6 +179,7 @@ const FileUpload = () => {
   };
 
   const resetUpload = () => {
+    setSelectedFile(null);
     dispatch(setCurrentFile(null));
     dispatch(clearUploadResult());
     if (fileInputRef.current) {
@@ -182,53 +191,67 @@ const FileUpload = () => {
     dispatch(deleteAllRecords())
       .unwrap()
       .then(() => {
-        dispatch(addNotification({
-          type: 'success',
-          message: 'All records deleted successfully',
-        }));
+        dispatch(
+          addNotification({
+            type: 'success',
+            message: 'All records deleted successfully',
+          })
+        );
         dispatch(fetchFileStats());
         setShowDeleteDialog(false);
       })
       .catch((error) => {
-        dispatch(addNotification({
-          type: 'error',
-          message: `Delete failed: ${error.message}`,
-        }));
+        dispatch(
+          addNotification({
+            type: 'error',
+            message: `Delete failed: ${error.message}`,
+          })
+        );
       });
   };
 
   const handleRefreshStats = () => {
     dispatch(fetchFileStats());
     dispatch(checkHealth());
-    dispatch(addNotification({
-      type: 'info',
-      message: 'Statistics refreshed',
-      autoHideDuration: 2000,
-    }));
+    dispatch(
+      addNotification({
+        type: 'info',
+        message: 'Statistics refreshed',
+        autoHideDuration: 2000,
+      })
+    );
   };
 
   const getProcessingSteps = () => {
     if (!result?.results) return [];
-    
+
     const steps = [
       {
         label: 'File Upload',
-        description: `Uploaded ${currentFile?.name} (${formatFileSize(currentFile?.size || 0)})`,
+        description: `Uploaded ${
+          selectedFile?.name || 'file'
+        } (${formatFileSize(selectedFile?.size || 0)})`,
         completed: true,
       },
       {
         label: 'File Parsing',
-        description: `Parsed ${formatNumber(result.results.summary.totalProcessed)} lines`,
+        description: `Parsed ${formatNumber(
+          result.results.summary.totalProcessed
+        )} lines`,
         completed: true,
       },
       {
         label: 'Data Validation',
-        description: `Validated ${formatNumber(result.results.summary.totalProcessed)} records`,
+        description: `Validated ${formatNumber(
+          result.results.summary.totalProcessed
+        )} records`,
         completed: true,
       },
       {
         label: 'Database Storage',
-        description: `Saved ${formatNumber(result.results.summary.totalSaved)} records`,
+        description: `Saved ${formatNumber(
+          result.results.summary.totalSaved
+        )} records`,
         completed: true,
       },
     ];
@@ -239,18 +262,25 @@ const FileUpload = () => {
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 3,
+        }}
+      >
         <Typography variant="h4" component="h1" fontWeight="bold">
           File Upload & Management
         </Typography>
-        
+
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Tooltip title="Refresh Statistics">
             <IconButton onClick={handleRefreshStats} disabled={stats.loading}>
               <RefreshIcon />
             </IconButton>
           </Tooltip>
-          
+
           <Button
             variant="outlined"
             color="error"
@@ -265,15 +295,21 @@ const FileUpload = () => {
 
       {/* Health Status */}
       {health.data && (
-        <Alert 
-          severity={health.data.status === 'healthy' ? 'success' : 'warning'} 
+        <Alert
+          severity={health.data.status === 'healthy' ? 'success' : 'warning'}
           sx={{ mb: 3 }}
-          icon={health.data.status === 'healthy' ? <CheckCircleIcon /> : <WarningIcon />}
+          icon={
+            health.data.status === 'healthy' ? (
+              <CheckCircleIcon />
+            ) : (
+              <WarningIcon />
+            )
+          }
         >
           <Typography variant="body2">
-            Database Status: <strong>{health.data.status}</strong> | 
-            Uptime: {formatDuration(health.data.uptime * 1000)} | 
-            Last Check: {formatDate(health.lastChecked)}
+            Database Status: <strong>{health.data.status}</strong> | Uptime:{' '}
+            {formatDuration(health.data.uptime * 1000)} | Last Check:{' '}
+            {formatDate(health.lastChecked)}
           </Typography>
         </Alert>
       )}
@@ -286,10 +322,11 @@ const FileUpload = () => {
               <Typography variant="h6" gutterBottom>
                 Upload HOT22 File
               </Typography>
-              
+
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Select a HOT22 text file to upload and process. The system will parse and store all transaction records
-                including BKS, BAR, BKI, and other record types.
+                Select a HOT22 text file to upload and process. The system will
+                parse and store all transaction records including BKS, BAR, BKI,
+                and other record types.
               </Typography>
 
               {/* Drop Zone */}
@@ -298,13 +335,19 @@ const FileUpload = () => {
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 sx={{
-                  border: `2px dashed ${dragActive ? theme.palette.primary.main : theme.palette.divider}`,
+                  border: `2px dashed ${
+                    dragActive
+                      ? theme.palette.primary.main
+                      : theme.palette.divider
+                  }`,
                   borderRadius: 2,
                   p: 4,
                   textAlign: 'center',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
-                  backgroundColor: dragActive ? theme.palette.action.hover : 'transparent',
+                  backgroundColor: dragActive
+                    ? theme.palette.action.hover
+                    : 'transparent',
                   '&:hover': {
                     borderColor: theme.palette.primary.main,
                     backgroundColor: theme.palette.action.hover,
@@ -312,23 +355,29 @@ const FileUpload = () => {
                 }}
                 onClick={() => fileInputRef.current?.click()}
               >
-                <CloudUploadIcon 
-                  sx={{ 
-                    fontSize: 64, 
-                    color: dragActive ? theme.palette.primary.main : theme.palette.text.secondary,
+                <CloudUploadIcon
+                  sx={{
+                    fontSize: 64,
+                    color: dragActive
+                      ? theme.palette.primary.main
+                      : theme.palette.text.secondary,
                     mb: 2,
-                  }} 
+                  }}
                 />
-                
+
                 <Typography variant="h6" gutterBottom>
-                  {currentFile ? 'File Selected' : 'Drop HOT22 file here or click to browse'}
+                  {selectedFile // Use selectedFile instead of currentFile
+                    ? 'File Selected'
+                    : 'Drop HOT22 file here or click to browse'}
                 </Typography>
-                
-                {currentFile ? (
+
+                {selectedFile ? ( // Use selectedFile instead of currentFile
                   <Box sx={{ mt: 2 }}>
                     <Chip
                       icon={<FileIcon />}
-                      label={`${currentFile.name} (${formatFileSize(currentFile.size)})`}
+                      label={`${selectedFile.name} (${formatFileSize(
+                        selectedFile.size
+                      )})`} // Use selectedFile
                       color="primary"
                       variant="outlined"
                       onDelete={resetUpload}
@@ -336,14 +385,13 @@ const FileUpload = () => {
                   </Box>
                 ) : (
                   <Typography variant="body2" color="text.secondary">
-                    Supported format: .txt (HOT22 format) • Max size: 100MB
+                    All file formats accepted • Max size: 100MB
                   </Typography>
                 )}
 
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".txt"
                   onChange={handleFileSelect}
                   style={{ display: 'none' }}
                 />
@@ -352,19 +400,23 @@ const FileUpload = () => {
               {/* Upload Progress */}
               {loading && (
                 <Box sx={{ mt: 3 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">
-                      Processing file...
-                    </Typography>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      mb: 1,
+                    }}
+                  >
+                    <Typography variant="body2">Processing file...</Typography>
                     <Typography variant="body2" color="text.secondary">
                       {progress}%
                     </Typography>
                   </Box>
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={progress} 
-                    sx={{ 
-                      height: 8, 
+                  <LinearProgress
+                    variant="determinate"
+                    value={progress}
+                    sx={{
+                      height: 8,
                       borderRadius: 4,
                       backgroundColor: theme.palette.grey[200],
                       '& .MuiLinearProgress-bar': {
@@ -372,7 +424,11 @@ const FileUpload = () => {
                       },
                     }}
                   />
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ mt: 0.5, display: 'block' }}
+                  >
                     Please wait while we parse and validate your HOT22 file...
                   </Typography>
                 </Box>
@@ -382,9 +438,13 @@ const FileUpload = () => {
               {processing.isProcessing && (
                 <Alert severity="info" sx={{ mt: 3 }}>
                   <Typography variant="body2">
-                    {processing.currentStep} 
+                    {processing.currentStep}
                     {processing.totalRecords > 0 && (
-                      <> • {processing.processedRecords}/{processing.totalRecords} records</>
+                      <>
+                        {' '}
+                        • {processing.processedRecords}/
+                        {processing.totalRecords} records
+                      </>
                     )}
                   </Typography>
                 </Alert>
@@ -395,13 +455,13 @@ const FileUpload = () => {
                 <Button
                   variant="contained"
                   onClick={handleUpload}
-                  disabled={!currentFile || loading || processing.isProcessing}
+                  disabled={!selectedFile || loading || processing.isProcessing} // Use selectedFile instead of currentFile
                   startIcon={<CloudUploadIcon />}
                   size="large"
                 >
                   {loading ? 'Processing...' : 'Upload & Process'}
                 </Button>
-                
+
                 <Button
                   variant="outlined"
                   onClick={resetUpload}
@@ -428,7 +488,9 @@ const FileUpload = () => {
                     <strong>Upload Failed</strong>
                   </Typography>
                   <Typography variant="body2">
-                    {typeof error === 'string' ? error : error.message || 'Unknown error occurred'}
+                    {typeof error === 'string'
+                      ? error
+                      : error.message || 'Unknown error occurred'}
                   </Typography>
                 </Alert>
               )}
@@ -439,13 +501,19 @@ const FileUpload = () => {
                     <strong>Upload Completed Successfully!</strong>
                   </Typography>
                   <Typography variant="body2">
-                    Processed {formatNumber(result.results?.summary?.totalProcessed || 0)} lines, 
-                    saved {formatNumber(result.results?.summary?.totalSaved || 0)} records 
-                    in {formatDuration(result.results?.summary?.processingTime || 0)}
+                    Processed{' '}
+                    {formatNumber(result.results?.summary?.totalProcessed || 0)}{' '}
+                    lines, saved{' '}
+                    {formatNumber(result.results?.summary?.totalSaved || 0)}{' '}
+                    records in{' '}
+                    {formatDuration(
+                      result.results?.summary?.processingTime || 0
+                    )}
                   </Typography>
                   {result.results?.summary?.totalErrors > 0 && (
                     <Typography variant="body2" color="warning.main">
-                      {formatNumber(result.results.summary.totalErrors)} records had validation errors
+                      {formatNumber(result.results.summary.totalErrors)} records
+                      had validation errors
                     </Typography>
                   )}
                 </Alert>
@@ -458,7 +526,7 @@ const FileUpload = () => {
                     <Typography variant="h6" gutterBottom>
                       Processing Summary
                     </Typography>
-                    
+
                     <Grid container spacing={2}>
                       <Grid item xs={6} sm={3}>
                         <Typography variant="body2" color="text.secondary">
@@ -468,7 +536,7 @@ const FileUpload = () => {
                           {formatNumber(result.results.summary.totalProcessed)}
                         </Typography>
                       </Grid>
-                      
+
                       <Grid item xs={6} sm={3}>
                         <Typography variant="body2" color="text.secondary">
                           Saved Records
@@ -477,7 +545,7 @@ const FileUpload = () => {
                           {formatNumber(result.results.summary.totalSaved)}
                         </Typography>
                       </Grid>
-                      
+
                       <Grid item xs={6} sm={3}>
                         <Typography variant="body2" color="text.secondary">
                           Validation Errors
@@ -486,13 +554,15 @@ const FileUpload = () => {
                           {formatNumber(result.results.summary.totalErrors)}
                         </Typography>
                       </Grid>
-                      
+
                       <Grid item xs={6} sm={3}>
                         <Typography variant="body2" color="text.secondary">
                           Processing Time
                         </Typography>
                         <Typography variant="h6">
-                          {formatDuration(result.results.summary.processingTime)}
+                          {formatDuration(
+                            result.results.summary.processingTime
+                          )}
                         </Typography>
                       </Grid>
                     </Grid>
@@ -504,10 +574,14 @@ const FileUpload = () => {
                           Record Types Processed
                         </Typography>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                          {Object.entries(result.results.summary.recordTypes).map(([type, counts]) => (
+                          {Object.entries(
+                            result.results.summary.recordTypes
+                          ).map(([type, counts]) => (
                             <Chip
                               key={type}
-                              label={`${type}: ${formatNumber(counts.saved)}/${formatNumber(counts.processed)}`}
+                              label={`${type}: ${formatNumber(
+                                counts.saved
+                              )}/${formatNumber(counts.processed)}`}
                               size="small"
                               variant="outlined"
                               color={counts.errors > 0 ? 'warning' : 'success'}
@@ -530,14 +604,23 @@ const FileUpload = () => {
             <Grid item xs={12}>
               <Card>
                 <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      mb: 2,
+                    }}
+                  >
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                       <StatsIcon sx={{ mr: 1 }} />
-                      <Typography variant="h6">
-                        Database Statistics
-                      </Typography>
+                      <Typography variant="h6">Database Statistics</Typography>
                     </Box>
-                    <IconButton size="small" onClick={handleRefreshStats} disabled={stats.loading}>
+                    <IconButton
+                      size="small"
+                      onClick={handleRefreshStats}
+                      disabled={stats.loading}
+                    >
                       <RefreshIcon />
                     </IconButton>
                   </Box>
@@ -552,32 +635,38 @@ const FileUpload = () => {
                     <Alert severity="error" size="small">
                       Error loading statistics: {stats.error}
                     </Alert>
-                  ) : stats.data ? (
+                  ) : stats.data?.data ? (
                     <Box>
+                      {/* Total Records Display */}
                       <Box sx={{ textAlign: 'center', mb: 2 }}>
-                        <Typography variant="h3" color="primary" fontWeight="bold">
-                          {formatNumber(stats.data.totalRecords)}
+                        <Typography
+                          variant="h3"
+                          color="primary"
+                          fontWeight="bold"
+                        >
+                          {formatNumber(stats.data.data.totalRecords)}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                           Total Records in Database
                         </Typography>
                       </Box>
 
+                      {/* Collections Summary */}
                       <Grid container spacing={2} sx={{ mb: 2 }}>
                         <Grid item xs={6}>
                           <Typography variant="body2" color="text.secondary">
-                            Collections
+                            Collections with Data
                           </Typography>
-                          <Typography variant="h6">
-                            {stats.data.collections || 0}
+                          <Typography variant="h6" color="success.main">
+                            {stats.data.data.collectionsWithData}
                           </Typography>
                         </Grid>
                         <Grid item xs={6}>
                           <Typography variant="body2" color="text.secondary">
-                            Last Updated
+                            Total Collections
                           </Typography>
-                          <Typography variant="body2">
-                            {formatDate(stats.lastUpdated)}
+                          <Typography variant="h6">
+                            {stats.data.data.totalCollections}
                           </Typography>
                         </Grid>
                       </Grid>
@@ -587,34 +676,79 @@ const FileUpload = () => {
                       <Typography variant="subtitle2" gutterBottom>
                         Record Types
                       </Typography>
-                      
+
                       <List dense>
-                        {Object.entries(stats.data.statistics || {})
-                          .sort(([,a], [,b]) => b - a)
-                          .slice(0, 8)
+                        {Object.entries(stats.data.data.recordCounts || {})
+                          .filter(([, count]) => count > 0) // Only show record types with data
+                          .sort(([, a], [, b]) => b - a) // Sort by count (highest first)
                           .map(([type, count]) => (
-                          <ListItem key={type} sx={{ px: 0, py: 0.5 }}>
-                            <ListItemIcon sx={{ minWidth: 32 }}>
-                              <FileIcon fontSize="small" color="primary" />
-                            </ListItemIcon>
-                            <ListItemText
-                              primary={
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                  <Typography variant="body2" fontFamily="monospace">
-                                    {type}
-                                  </Typography>
-                                  <Typography variant="body2" fontWeight={500}>
-                                    {formatNumber(count)}
-                                  </Typography>
-                                </Box>
-                              }
-                            />
-                          </ListItem>
-                        ))}
+                            <ListItem key={type} sx={{ px: 0, py: 0.5 }}>
+                              <ListItemIcon sx={{ minWidth: 32 }}>
+                                <FileIcon fontSize="small" color="primary" />
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={
+                                  <Box
+                                    sx={{
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                    }}
+                                  >
+                                    <Typography
+                                      variant="body2"
+                                      fontFamily="monospace"
+                                    >
+                                      {type}
+                                    </Typography>
+                                    <Typography
+                                      variant="body2"
+                                      fontWeight={500}
+                                    >
+                                      {formatNumber(count)}
+                                    </Typography>
+                                  </Box>
+                                }
+                              />
+                            </ListItem>
+                          ))}
                       </List>
+
+                      {/* Show empty collections count if any */}
+                      {stats.data.data.totalCollections -
+                        stats.data.data.collectionsWithData >
+                        0 && (
+                        <Box
+                          sx={{
+                            mt: 2,
+                            p: 1,
+                            bgcolor: 'grey.50',
+                            borderRadius: 1,
+                          }}
+                        >
+                          <Typography variant="caption" color="text.secondary">
+                            {stats.data.data.totalCollections -
+                              stats.data.data.collectionsWithData}{' '}
+                            record types contain no data
+                          </Typography>
+                        </Box>
+                      )}
+
+                      {/* Last Updated */}
+                      <Box sx={{ mt: 2, textAlign: 'center' }}>
+                        <Typography variant="caption" color="text.secondary">
+                          Last updated:{' '}
+                          {formatDate(
+                            stats.data.timestamp || stats.lastUpdated
+                          )}
+                        </Typography>
+                      </Box>
                     </Box>
                   ) : (
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ textAlign: 'center', py: 4 }}
+                    >
                       No statistics available
                     </Typography>
                   )}
@@ -629,14 +763,17 @@ const FileUpload = () => {
                   <Typography variant="h6" gutterBottom>
                     Recent Upload History
                   </Typography>
-                  
+
                   {ui.uploadHistory.length > 0 ? (
                     <List dense>
                       {ui.uploadHistory.slice(0, 10).map((upload) => (
                         <ListItem key={upload.id} sx={{ px: 0 }}>
                           <ListItemIcon sx={{ minWidth: 32 }}>
                             {upload.status === 'success' ? (
-                              <CheckCircleIcon fontSize="small" color="success" />
+                              <CheckCircleIcon
+                                fontSize="small"
+                                color="success"
+                              />
                             ) : (
                               <ErrorIcon fontSize="small" color="error" />
                             )}
@@ -649,8 +786,12 @@ const FileUpload = () => {
                             }
                             secondary={
                               <Box>
-                                <Typography variant="caption" color="text.secondary">
-                                  {formatNumber(upload.recordCount)} records • {formatDate(upload.timestamp)}
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                >
+                                  {formatNumber(upload.recordCount)} records •{' '}
+                                  {formatDate(upload.timestamp)}
                                 </Typography>
                               </Box>
                             }
@@ -659,7 +800,11 @@ const FileUpload = () => {
                       ))}
                     </List>
                   ) : (
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ textAlign: 'center', py: 2 }}
+                    >
                       No upload history available
                     </Typography>
                   )}
@@ -671,15 +816,13 @@ const FileUpload = () => {
       </Grid>
 
       {/* Processing Details Dialog */}
-      <Dialog 
-        open={showDetails} 
+      <Dialog
+        open={showDetails}
         onClose={() => setShowDetails(false)}
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>
-          Processing Details
-        </DialogTitle>
+        <DialogTitle>Processing Details</DialogTitle>
         <DialogContent>
           {result?.results && (
             <Box>
@@ -713,24 +856,43 @@ const FileUpload = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {Object.entries(result.results.summary.recordTypes).map(([type, counts]) => {
-                        const successRate = ((counts.saved / counts.processed) * 100).toFixed(1);
-                        return (
-                          <TableRow key={type}>
-                            <TableCell sx={{ fontFamily: 'monospace' }}>{type}</TableCell>
-                            <TableCell align="right">{formatNumber(counts.processed)}</TableCell>
-                            <TableCell align="right">{formatNumber(counts.saved)}</TableCell>
-                            <TableCell align="right">{formatNumber(counts.errors)}</TableCell>
-                            <TableCell align="right">
-                              <Chip 
-                                label={`${successRate}%`}
-                                size="small"
-                                color={parseFloat(successRate) >= 95 ? 'success' : parseFloat(successRate) >= 80 ? 'warning' : 'error'}
-                              />
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
+                      {Object.entries(result.results.summary.recordTypes).map(
+                        ([type, counts]) => {
+                          const successRate = (
+                            (counts.saved / counts.processed) *
+                            100
+                          ).toFixed(1);
+                          return (
+                            <TableRow key={type}>
+                              <TableCell sx={{ fontFamily: 'monospace' }}>
+                                {type}
+                              </TableCell>
+                              <TableCell align="right">
+                                {formatNumber(counts.processed)}
+                              </TableCell>
+                              <TableCell align="right">
+                                {formatNumber(counts.saved)}
+                              </TableCell>
+                              <TableCell align="right">
+                                {formatNumber(counts.errors)}
+                              </TableCell>
+                              <TableCell align="right">
+                                <Chip
+                                  label={`${successRate}%`}
+                                  size="small"
+                                  color={
+                                    parseFloat(successRate) >= 95
+                                      ? 'success'
+                                      : parseFloat(successRate) >= 80
+                                      ? 'warning'
+                                      : 'error'
+                                  }
+                                />
+                              </TableCell>
+                            </TableRow>
+                          );
+                        }
+                      )}
                     </TableBody>
                   </Table>
                 </TableContainer>
@@ -744,13 +906,17 @@ const FileUpload = () => {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={showDeleteDialog} onClose={() => setShowDeleteDialog(false)}>
+      <Dialog
+        open={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+      >
         <DialogTitle>Confirm Database Clear</DialogTitle>
         <DialogContent>
           <Alert severity="warning" sx={{ mb: 2 }}>
             <Typography variant="body2">
-              This will permanently delete all {formatNumber(stats.data?.totalRecords || 0)} records 
-              from the database. This action cannot be undone.
+              This will permanently delete all{' '}
+              {formatNumber(stats.data?.totalRecords || 0)} records from the
+              database. This action cannot be undone.
             </Typography>
           </Alert>
           <Typography variant="body2">
@@ -759,9 +925,9 @@ const FileUpload = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShowDeleteDialog(false)}>Cancel</Button>
-          <Button 
-            onClick={handleDeleteAllRecords} 
-            color="error" 
+          <Button
+            onClick={handleDeleteAllRecords}
+            color="error"
             variant="contained"
             disabled={processing.isProcessing}
           >

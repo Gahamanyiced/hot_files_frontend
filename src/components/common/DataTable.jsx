@@ -16,6 +16,7 @@ import {
   CircularProgress,
   Typography,
   Chip,
+  Button,
   useTheme,
   alpha,
 } from '@mui/material';
@@ -24,6 +25,7 @@ import {
   KeyboardArrowRight,
   GetApp as ExportIcon,
   Refresh as RefreshIcon,
+  Visibility as ViewIcon,
 } from '@mui/icons-material';
 
 const DataTable = ({
@@ -45,6 +47,8 @@ const DataTable = ({
   onExpandRow,
   onRefresh,
   onExport,
+  onRowClick, // New prop for row click handling
+  rowAction, // New prop for row actions
   renderExpandedRow,
   emptyMessage = 'No data available',
   stickyHeader = true,
@@ -63,13 +67,35 @@ const DataTable = ({
   };
 
   const handleSelectClick = (event, index) => {
-    event.stopPropagation();
+    event.stopPropagation(); // Prevent row click
     onSelectRow?.(index);
   };
 
   const handleExpandClick = (event, index) => {
-    event.stopPropagation();
+    event.stopPropagation(); // Prevent row click
     onExpandRow?.(index);
+  };
+
+  const handleRowClick = (row, index) => {
+    // Only trigger if not in selection mode or if onRowClick is explicitly provided
+    if (onRowClick) {
+      onRowClick(row, index);
+    } else if (rowAction && typeof rowAction === 'function') {
+      const action = rowAction(row, index);
+      if (action && action.onClick) {
+        action.onClick();
+      }
+    }
+  };
+
+  const handleActionClick = (event, row, index) => {
+    event.stopPropagation(); // Prevent row click
+    if (rowAction && typeof rowAction === 'function') {
+      const action = rowAction(row, index);
+      if (action && action.onClick) {
+        action.onClick();
+      }
+    }
   };
 
   const handleSortClick = (columnId) => {
@@ -79,6 +105,9 @@ const DataTable = ({
 
   const isSelected = (index) => selectedRows.includes(index);
   const isExpanded = (index) => expandedRows.includes(index);
+
+  // Determine if we should show action column
+  const hasActions = rowAction && typeof rowAction === 'function';
 
   if (error) {
     return (
@@ -186,6 +215,13 @@ const DataTable = ({
                   )}
                 </TableCell>
               ))}
+
+              {/* Actions column */}
+              {hasActions && (
+                <TableCell align="center" sx={{ width: 120 }}>
+                  Actions
+                </TableCell>
+              )}
             </TableRow>
           </TableHead>
 
@@ -194,7 +230,10 @@ const DataTable = ({
               <TableRow>
                 <TableCell
                   colSpan={
-                    columns.length + (selectable ? 1 : 0) + (expandable ? 1 : 0)
+                    columns.length +
+                    (selectable ? 1 : 0) +
+                    (expandable ? 1 : 0) +
+                    (hasActions ? 1 : 0)
                   }
                   align="center"
                   sx={{ py: 8 }}
@@ -206,7 +245,10 @@ const DataTable = ({
               <TableRow>
                 <TableCell
                   colSpan={
-                    columns.length + (selectable ? 1 : 0) + (expandable ? 1 : 0)
+                    columns.length +
+                    (selectable ? 1 : 0) +
+                    (expandable ? 1 : 0) +
+                    (hasActions ? 1 : 0)
                   }
                   align="center"
                   sx={{ py: 8 }}
@@ -222,6 +264,9 @@ const DataTable = ({
                 const isItemExpanded = isExpanded(index);
                 const labelId = `table-checkbox-${index}`;
 
+                // Get action for this row
+                const action = hasActions ? rowAction(row, index) : null;
+
                 return (
                   <React.Fragment key={index}>
                     <TableRow
@@ -230,13 +275,23 @@ const DataTable = ({
                       aria-checked={isItemSelected}
                       tabIndex={-1}
                       selected={isItemSelected}
+                      onClick={() => !selectable && handleRowClick(row, index)}
                       sx={{
-                        cursor: selectable ? 'pointer' : 'default',
+                        cursor:
+                          !selectable && (onRowClick || hasActions)
+                            ? 'pointer'
+                            : 'default',
                         '&.Mui-selected': {
                           backgroundColor: alpha(
                             theme.palette.primary.main,
                             0.08
                           ),
+                        },
+                        '&:hover': {
+                          backgroundColor:
+                            !selectable && (onRowClick || hasActions)
+                              ? alpha(theme.palette.primary.main, 0.04)
+                              : undefined,
                         },
                       }}
                     >
@@ -283,6 +338,23 @@ const DataTable = ({
                           </TableCell>
                         );
                       })}
+
+                      {/* Actions cell */}
+                      {hasActions && action && (
+                        <TableCell align="center">
+                          <Tooltip title={action.label || 'Action'}>
+                            <IconButton
+                              size="small"
+                              onClick={(event) =>
+                                handleActionClick(event, row, index)
+                              }
+                              color="primary"
+                            >
+                              {action.icon || <ViewIcon />}
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      )}
                     </TableRow>
 
                     {/* Expanded row content */}
@@ -293,7 +365,8 @@ const DataTable = ({
                           colSpan={
                             columns.length +
                             (selectable ? 1 : 0) +
-                            (expandable ? 1 : 0)
+                            (expandable ? 1 : 0) +
+                            (hasActions ? 1 : 0)
                           }
                         >
                           <Box sx={{ margin: 1 }}>

@@ -43,7 +43,7 @@ export const store = configureStore({
         ignoredActions: [
           'persist/PERSIST',
           'persist/REHYDRATE',
-          // Ignore RTK Query actions
+          // Ignore RTK Query actions that contain non-serializable values
           'hotFilesApi/executeQuery/pending',
           'hotFilesApi/executeQuery/fulfilled',
           'hotFilesApi/executeQuery/rejected',
@@ -56,11 +56,32 @@ export const store = configureStore({
           'errorLogsApi/executeMutation/pending',
           'errorLogsApi/executeMutation/fulfilled',
           'errorLogsApi/executeMutation/rejected',
+          // Ignore error logs actions
+          'errorLogs/fetchErrorLogs/pending',
+          'errorLogs/fetchErrorLogs/fulfilled',
+          'errorLogs/fetchErrorLogs/rejected',
+          'errorLogs/fetchErrorStats/pending',
+          'errorLogs/fetchErrorStats/fulfilled',
+          'errorLogs/fetchErrorStats/rejected',
+          // Ignore RTK Query internal actions
+          'errorLogsApi/config/middlewareRegistered',
+          'hotFilesApi/config/middlewareRegistered',
+          '__rtkq/focused',
+          '__rtkq/unfocused',
         ],
-        ignoredActionsPaths: ['meta.arg', 'payload.timestamp'],
+        ignoredActionsPaths: [
+          'meta.arg', 
+          'payload.timestamp',
+          'meta.baseQueryMeta',
+          'meta.fulfilledTimeStamp',
+          'meta.arg.signal',
+          'meta.arg.abort',
+          'payload.config',
+          'payload.request',
+        ],
         ignoredPaths: [
           'files.uploadProgress',
-          // Ignore RTK Query internal state
+          // Ignore RTK Query internal state paths
           'hotFilesApi.queries',
           'hotFilesApi.mutations',
           'hotFilesApi.provided',
@@ -71,8 +92,16 @@ export const store = configureStore({
           'errorLogsApi.provided',
           'errorLogsApi.subscriptions',
           'errorLogsApi.config',
-          // Ignore cache maps
+          // Ignore cache maps that contain non-serializable values
           'dashboard.cache',
+          'transactions.cache',
+          'transactions.cache.transactions',
+          'analytics.cache',
+          'offices.cache',
+          'customers.cache',
+          'files.cache',
+          'search.cache',
+          'errorLogs.cache',
         ],
       },
     })

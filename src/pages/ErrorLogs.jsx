@@ -35,7 +35,9 @@ import {
   CheckCircle as SuccessIcon,
   Schedule as ProcessingIcon,
   Analytics as StatsIcon,
-  Sync as RealtimeIcon, // Changed from RealTimeSync to Sync
+  Sync as RealtimeIcon,
+  Visibility as VisibilityIcon,
+  CloudUpload as UploadIcon,
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
@@ -59,6 +61,7 @@ import {
   setSearchQuery,
   setRealtimeMode,
   setAutoRefresh,
+  setRefreshInterval,
   clearFilters,
 } from '../store/slices/errorLogsSlice';
 import { addNotification } from '../store/slices/uiSlice';
@@ -128,6 +131,93 @@ const ErrorLogs = () => {
     };
   }, [dispatch, ui.autoRefresh, ui.realtimeMode, ui.refreshInterval, filters]);
 
+  // Table columns configuration - Using actual API response fields
+  const columns = [
+    {
+      id: 'fileName',
+      label: 'File Name',
+      minWidth: 200,
+      sortable: true,
+      render: (value, row) => (
+        <Box>
+          <Typography variant="body2" fontWeight="medium" noWrap title={value}>
+            {value || 'Unknown File'}
+          </Typography>
+          {row.fileSize && (
+            <Typography variant="caption" color="text.secondary">
+              {formatFileSize(row.fileSize)}
+            </Typography>
+          )}
+        </Box>
+      ),
+    },
+    {
+      id: 'status',
+      label: 'Status',
+      minWidth: 120,
+      align: 'center',
+      sortable: true,
+      render: (value) => (
+        <Chip
+          label={value?.charAt(0).toUpperCase() + value?.slice(1) || 'Unknown'}
+          color={getStatusColor(value)}
+          size="small"
+          icon={getStatusIcon(value)}
+        />
+      ),
+    },
+    {
+      id: 'totalProcessed',
+      label: 'Total Processed',
+      minWidth: 130,
+      align: 'right',
+      sortable: true,
+      render: (value) => (
+        <Typography variant="body2" fontWeight="medium">
+          {formatNumber(value || 0)}
+        </Typography>
+      ),
+    },
+    {
+      id: 'totalSaved',
+      label: 'Saved',
+      minWidth: 100,
+      align: 'right',
+      sortable: true,
+      render: (value) => (
+        <Typography variant="body2" color="success.main">
+          {formatNumber(value || 0)}
+        </Typography>
+      ),
+    },
+    {
+      id: 'totalErrors',
+      label: 'Errors',
+      minWidth: 100,
+      align: 'right',
+      sortable: true,
+      render: (value) => (
+        <Chip
+          label={formatNumber(value || 0)}
+          color={value > 0 ? 'error' : 'success'}
+          size="small"
+        />
+      ),
+    },
+    {
+      id: 'uploadedAt',
+      label: 'Upload Time',
+      minWidth: 130,
+      sortable: true,
+      render: (value) => (
+        <Typography variant="body2">
+          {value ? formatDate(value) : 'N/A'}
+        </Typography>
+      ),
+    },
+  ];
+
+  // Event handlers
   const handleRefresh = () => {
     dispatch(fetchErrorLogs(filters));
     dispatch(fetchErrorStats({ days: 30 }));
@@ -174,65 +264,43 @@ const ErrorLogs = () => {
   const handleSearch = () => {
     if (searchInput.trim()) {
       dispatch(setSearchQuery(searchInput));
-      dispatch(
-        searchErrorLogs({
-          q: searchInput,
-          ...filters,
-        })
-      );
+      dispatch(searchErrorLogs({ query: searchInput, ...filters }));
     }
   };
 
-  const handleSearchInputChange = (event) => {
-    setSearchInput(event.target.value);
+  const handleSearchKeyPress = (event) => {
+    if (event.key === 'Enter') {
+      handleSearch();
+    }
   };
 
-  const handleSearchSubmit = (event) => {
-    event.preventDefault();
-    handleSearch();
+  const handleClearFilters = () => {
+    dispatch(clearFilters());
+    setSearchInput('');
+  };
+
+  const handleToggleRealtime = () => {
+    const newRealtimeMode = !ui.realtimeMode;
+    dispatch(setRealtimeMode(newRealtimeMode));
+    dispatch(setAutoRefresh(newRealtimeMode));
   };
 
   const handleBulkDelete = () => {
     if (ui.selectedItems.length > 0) {
-      dispatch(bulkDeleteErrorLogs(ui.selectedItems))
-        .unwrap()
-        .then(() => {
-          dispatch(
-            addNotification({
-              type: 'success',
-              message: `Successfully deleted ${ui.selectedItems.length} error logs`,
-            })
-          );
-        })
-        .catch((error) => {
-          dispatch(
-            addNotification({
-              type: 'error',
-              message: `Failed to delete error logs: ${error.message}`,
-            })
-          );
-        });
+      dispatch(bulkDeleteErrorLogs(ui.selectedItems));
     }
   };
 
-  const handleToggleRealtime = () => {
-    dispatch(setRealtimeMode(!ui.realtimeMode));
-    dispatch(setAutoRefresh(!ui.autoRefresh));
+  const handleExport = () => {
+    dispatch(
+      addNotification({
+        type: 'info',
+        message: 'Export functionality will be implemented soon',
+      })
+    );
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'completed':
-        return <SuccessIcon color="success" />;
-      case 'failed':
-        return <ErrorIcon color="error" />;
-      case 'processing':
-        return <ProcessingIcon color="warning" />;
-      default:
-        return <WarningIcon color="disabled" />;
-    }
-  };
-
+  // Utility functions
   const getStatusColor = (status) => {
     switch (status) {
       case 'completed':
@@ -246,68 +314,18 @@ const ErrorLogs = () => {
     }
   };
 
-  const columns = [
-    {
-      id: 'uploadId',
-      label: 'Upload ID',
-      minWidth: 150,
-      format: (value) => value.substring(0, 8) + '...',
-    },
-    {
-      id: 'fileName',
-      label: 'File Name',
-      minWidth: 200,
-    },
-    {
-      id: 'status',
-      label: 'Status',
-      minWidth: 120,
-      format: (value) => (
-        <Chip
-          icon={getStatusIcon(value)}
-          label={value.charAt(0).toUpperCase() + value.slice(1)}
-          color={getStatusColor(value)}
-          size="small"
-        />
-      ),
-    },
-    {
-      id: 'uploadedAt',
-      label: 'Uploaded',
-      minWidth: 150,
-      format: (value) => formatDate(value),
-    },
-    {
-      id: 'fileSize',
-      label: 'File Size',
-      minWidth: 100,
-      format: (value) => formatFileSize(value),
-    },
-    {
-      id: 'totalProcessed',
-      label: 'Processed',
-      minWidth: 100,
-      format: (value) => formatNumber(value),
-    },
-    {
-      id: 'totalErrors',
-      label: 'Errors',
-      minWidth: 100,
-      format: (value) => (
-        <Chip
-          label={formatNumber(value)}
-          color={value > 0 ? 'error' : 'success'}
-          size="small"
-        />
-      ),
-    },
-    {
-      id: 'processingTime',
-      label: 'Processing Time',
-      minWidth: 130,
-      format: (value) => formatDuration(value),
-    },
-  ];
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'completed':
+        return <SuccessIcon />;
+      case 'failed':
+        return <ErrorIcon />;
+      case 'processing':
+        return <ProcessingIcon />;
+      default:
+        return null;
+    }
+  };
 
   return (
     <Box sx={{ flexGrow: 1, p: 3 }}>
@@ -348,17 +366,17 @@ const ErrorLogs = () => {
           </Tooltip>
 
           <Tooltip title="Refresh">
-            <IconButton onClick={handleRefresh} disabled={loading}>
-              <RefreshIcon />
-            </IconButton>
+            <span>
+              <IconButton onClick={handleRefresh} disabled={loading}>
+                <RefreshIcon />
+              </IconButton>
+            </span>
           </Tooltip>
 
           <Button
             variant="outlined"
             startIcon={<DownloadIcon />}
-            onClick={() => {
-              /* Handle export */
-            }}
+            onClick={handleExport}
           >
             Export
           </Button>
@@ -376,117 +394,82 @@ const ErrorLogs = () => {
       {/* Statistics Overview */}
       {stats.data && (
         <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <MetricCard
               title="Total Uploads"
-              value={stats.data.totalUploads}
-              icon={StatsIcon}
+              value={stats.data.totalUploads || 0}
+              icon={UploadIcon}
               color="primary"
               loading={stats.loading}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <MetricCard
               title="Failed Uploads"
-              value={stats.data.failedUploads}
+              value={stats.data.failedUploads || 0}
               icon={ErrorIcon}
               color="error"
               loading={stats.loading}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <MetricCard
               title="Success Rate"
-              value={`${stats.data.successRate}%`}
+              value={`${stats.data.successRate || 0}%`}
               icon={SuccessIcon}
               color="success"
               loading={stats.loading}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <MetricCard
-              title="Total Errors"
-              value={stats.data.totalErrors}
-              icon={WarningIcon}
-              color="warning"
+              title="Avg Processing Time"
+              value={
+                stats.data.avgProcessingTime
+                  ? `${stats.data.avgProcessingTime}ms`
+                  : 'N/A'
+              }
+              icon={ProcessingIcon}
+              color="info"
               loading={stats.loading}
             />
           </Grid>
         </Grid>
       )}
 
-      {/* Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={ui.selectedTab} onChange={handleTabChange}>
-          <Tab label="Error Logs" />
-          <Tab label="Statistics" />
-          <Tab label="Real-time Monitor" />
-        </Tabs>
-      </Box>
-
-      {/* Tab Content */}
-      {ui.selectedTab === 0 && (
-        <Box>
-          {/* Search and Filters */}
-          <Grid container spacing={3} sx={{ mb: 3 }}>
-            <Grid item xs={12} md={6}>
-              <form onSubmit={handleSearchSubmit}>
-                <TextField
-                  fullWidth
-                  placeholder="Search error logs..."
-                  value={searchInput}
-                  onChange={handleSearchInputChange}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </form>
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Box
-                sx={{
-                  display: 'flex',
-                  gap: 2,
-                  alignItems: 'center',
-                  height: '100%',
+      {/* Search and Filters */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={3} alignItems="center">
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                placeholder="Search error logs..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyPress={handleSearchKeyPress}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                  ),
                 }}
-              >
-                <FormControl size="small" sx={{ minWidth: 120 }}>
-                  <InputLabel>Status</InputLabel>
-                  <Select
-                    value={filters.status}
-                    label="Status"
-                    onChange={(e) =>
-                      handleFilterChange('status', e.target.value)
-                    }
-                  >
-                    <MenuItem value="">All</MenuItem>
-                    <MenuItem value="completed">Completed</MenuItem>
-                    <MenuItem value="failed">Failed</MenuItem>
-                    <MenuItem value="processing">Processing</MenuItem>
-                  </Select>
-                </FormControl>
-
-                <FormControl size="small" sx={{ minWidth: 120 }}>
-                  <InputLabel>Has Errors</InputLabel>
-                  <Select
-                    value={filters.hasErrors}
-                    label="Has Errors"
-                    onChange={(e) =>
-                      handleFilterChange('hasErrors', e.target.value)
-                    }
-                  >
-                    <MenuItem value="">All</MenuItem>
-                    <MenuItem value="true">With Errors</MenuItem>
-                    <MenuItem value="false">No Errors</MenuItem>
-                  </Select>
-                </FormControl>
-
+                size="small"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                <Button
+                  variant="outlined"
+                  onClick={handleSearch}
+                  disabled={!searchInput.trim()}
+                >
+                  Search
+                </Button>
+                <Button variant="outlined" onClick={handleClearFilters}>
+                  Clear Filters
+                </Button>
                 <Tooltip
                   title={ui.viewMode === 'table' ? 'Grid View' : 'Table View'}
                 >
@@ -513,21 +496,43 @@ const ErrorLogs = () => {
             <ErrorLogFilters
               filters={filters}
               onFilterChange={handleFilterChange}
-              onClearFilters={() => dispatch(clearFilters())}
+              onClearFilters={handleClearFilters}
             />
           )}
+        </CardContent>
+      </Card>
 
-          {/* Bulk Actions */}
-          {ui.showBulkActions && (
-            <ErrorLogBulkActions
-              selectedCount={ui.selectedItems.length}
-              onBulkDelete={handleBulkDelete}
-              onClearSelection={() => dispatch(clearErrorLogSelection())}
-              loading={bulkOperations.loading}
-            />
-          )}
+      {/* Tabs */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={ui.selectedTab} onChange={handleTabChange}>
+          <Tab
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                Error Logs
+                {data.length > 0 && (
+                  <Chip label={data.length} size="small" color="primary" />
+                )}
+              </Box>
+            }
+          />
+          <Tab label="Statistics" />
+          <Tab label="Real-time Monitor" />
+        </Tabs>
+      </Box>
 
-          {/* Data Display */}
+      {/* Bulk Actions */}
+      {ui.selectedItems.length > 0 && (
+        <ErrorLogBulkActions
+          selectedCount={ui.selectedItems.length}
+          onDelete={handleBulkDelete}
+          onExport={handleExport}
+          loading={bulkOperations.loading}
+        />
+      )}
+
+      {/* Content Tabs */}
+      {ui.selectedTab === 0 && (
+        <Box>
           {ui.viewMode === 'table' ? (
             <DataTable
               columns={columns}
@@ -535,27 +540,38 @@ const ErrorLogs = () => {
               loading={loading}
               pagination={pagination}
               onPageChange={handlePageChange}
-              onPageSizeChange={handlePageSizeChange}
+              onRowsPerPageChange={handlePageSizeChange}
               onSort={handleSort}
-              sortBy={ui.sortBy}
-              sortOrder={ui.sortOrder}
+              sortable
               selectable
-              selectedItems={ui.selectedItems}
-              onSelectionChange={(uploadId) =>
-                dispatch(toggleErrorLogSelection(uploadId))
-              }
-              onSelectAll={() => dispatch(selectAllErrorLogs())}
-              onClearSelection={() => dispatch(clearErrorLogSelection())}
+              selectedRows={ui.selectedItems.map((uploadId) =>
+                data.findIndex((item) => item.uploadId === uploadId)
+              )}
+              onSelectAll={(indexes) => {
+                if (indexes.length === 0) {
+                  dispatch(clearErrorLogSelection());
+                } else {
+                  dispatch(selectAllErrorLogs());
+                }
+              }}
+              onSelectRow={(index) => {
+                if (data[index]) {
+                  dispatch(toggleErrorLogSelection(data[index].uploadId));
+                }
+              }}
               emptyMessage="No error logs found"
               rowAction={(row) => ({
                 label: 'View Details',
+                icon: <VisibilityIcon />,
                 onClick: () => navigate(`/error-logs/${row.uploadId}`),
               })}
+              onRefresh={handleRefresh}
+              onExport={handleExport}
             />
           ) : (
             <Grid container spacing={3}>
               {data.map((errorLog) => (
-                <Grid item xs={12} sm={6} md={4} key={errorLog.uploadId}>
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={errorLog.uploadId}>
                   <ErrorLogCard
                     errorLog={errorLog}
                     selected={ui.selectedItems.includes(errorLog.uploadId)}
@@ -582,10 +598,10 @@ const ErrorLogs = () => {
       {ui.selectedTab === 2 && (
         <RealtimeMonitor
           enabled={ui.realtimeMode}
-          interval={ui.refreshInterval}
+          interval={ui.refreshInterval / 1000} // Convert to seconds
           onToggle={handleToggleRealtime}
-          onIntervalChange={(interval) =>
-            dispatch(setRefreshInterval(interval))
+          onIntervalChange={
+            (interval) => dispatch(setRefreshInterval(interval * 1000)) // Convert to milliseconds
           }
         />
       )}

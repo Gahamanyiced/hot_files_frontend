@@ -1,13 +1,12 @@
-// src/store/slices/errorLogsSlice.js
+// src/store/slices/errorLogsSlice.js - Fixed initial state
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { errorLogsApi } from '../../services/hotFilesApi';
 
-// Async thunks for complex operations
+// Async thunks
 export const fetchErrorLogs = createAsyncThunk(
   'errorLogs/fetchErrorLogs',
   async (params, { rejectWithValue }) => {
     try {
-      // Clean parameters - remove empty strings and format dates
       const cleanParams = Object.entries(params || {}).reduce(
         (acc, [key, value]) => {
           if (value !== '' && value !== null && value !== undefined) {
@@ -36,9 +35,30 @@ export const fetchErrorLogs = createAsyncThunk(
 
 export const fetchErrorLogDetails = createAsyncThunk(
   'errorLogs/fetchErrorLogDetails',
-  async (uploadId, { rejectWithValue }) => {
+  async (params, { rejectWithValue }) => {
     try {
-      const response = await errorLogsApi.getErrorLogDetails(uploadId);
+      let uploadId,
+        queryParams = {};
+
+      // Handle both old (string) and new (object) parameter formats
+      if (typeof params === 'string') {
+        // Backward compatibility: if params is just a string, it's the uploadId
+        uploadId = params;
+      } else {
+        // New format: params is an object with uploadId and optional query parameters
+        uploadId = params.uploadId;
+        queryParams = {
+          page: params.page,
+          limit: params.limit,
+          recordType: params.recordType,
+          errorType: params.errorType,
+        };
+      }
+
+      const response = await errorLogsApi.getErrorLogDetails(
+        uploadId,
+        queryParams
+      );
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data || error.message);
@@ -62,26 +82,7 @@ export const searchErrorLogs = createAsyncThunk(
   'errorLogs/searchErrorLogs',
   async (params, { rejectWithValue }) => {
     try {
-      // Clean parameters - remove empty strings and format dates
-      const cleanParams = Object.entries(params || {}).reduce(
-        (acc, [key, value]) => {
-          if (value !== '' && value !== null && value !== undefined) {
-            if (key === 'startDate' || key === 'endDate') {
-              if (value instanceof Date) {
-                acc[key] = value.toISOString().split('T')[0];
-              } else if (value) {
-                acc[key] = value;
-              }
-            } else {
-              acc[key] = value;
-            }
-          }
-          return acc;
-        },
-        {}
-      );
-
-      const response = await errorLogsApi.searchErrorLogs(cleanParams);
+      const response = await errorLogsApi.searchErrorLogs(params);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data || error.message);
@@ -93,11 +94,8 @@ export const bulkDeleteErrorLogs = createAsyncThunk(
   'errorLogs/bulkDeleteErrorLogs',
   async (uploadIds, { rejectWithValue }) => {
     try {
-      const response = await errorLogsApi.bulkOperationErrorLogs({
-        uploadIds,
-        operation: 'delete',
-      });
-      return response.data;
+      const response = await errorLogsApi.bulkDeleteErrorLogs(uploadIds);
+      return { uploadIds, ...response.data };
     } catch (error) {
       return rejectWithValue(error.response?.data || error.message);
     }
@@ -116,7 +114,7 @@ const initialState = {
       totalRecords: 0,
       hasNextPage: false,
       hasPrevPage: false,
-      limit: 20,
+      limit: 25, // Changed from 20 to 25 (one of the valid options)
     },
     lastUpdated: null,
   },
@@ -147,20 +145,17 @@ const initialState = {
 
   // Filters and UI state
   filters: {
-    status: null, // Changed from '' to null
-    startDate: null,
-    endDate: null,
-    hasErrors: null, // Changed from '' to null
-    recordType: null, // Changed from '' to null
-    errorType: null, // Changed from '' to null
+    status: null, // 'processing', 'completed', 'failed'
+    startDate: null, // ISO 8601 date
+    endDate: null, // ISO 8601 date
     page: 1,
-    limit: 20,
+    limit: 25,
   },
 
   // UI state
   ui: {
     selectedTab: 0,
-    viewMode: 'table', // 'table' | 'grid'
+    viewMode: 'table',
     showFilters: false,
     sortBy: 'uploadedAt',
     sortOrder: 'desc',
@@ -168,7 +163,7 @@ const initialState = {
     showBulkActions: false,
     realtimeMode: false,
     autoRefresh: false,
-    refreshInterval: 30000, // 30 seconds
+    refreshInterval: 30000,
   },
 
   // Bulk operations
@@ -194,14 +189,12 @@ const errorLogsSlice = createSlice({
     // Filters
     setFilter: (state, action) => {
       const { key, value } = action.payload;
-      // Convert empty strings to null for proper API handling
       state.filters[key] = value === '' ? null : value;
       if (key !== 'page') {
-        state.filters.page = 1; // Reset to first page when filters change
+        state.filters.page = 1;
       }
     },
     setFilters: (state, action) => {
-      // Clean the filters object to convert empty strings to null
       const cleanFilters = Object.entries(action.payload).reduce(
         (acc, [key, value]) => {
           acc[key] = value === '' ? null : value;
@@ -222,8 +215,13 @@ const errorLogsSlice = createSlice({
       state.filters.page = action.payload;
     },
     setPageSize: (state, action) => {
-      state.filters.limit = action.payload;
-      state.filters.page = 1;
+      const newLimit = action.payload;
+      // Ensure the new limit is one of the valid options
+      if ([10, 25, 50, 100].includes(newLimit)) {
+        state.filters.limit = newLimit;
+        state.errorLogs.pagination.limit = newLimit;
+        state.filters.page = 1;
+      }
     },
 
     // Sorting
@@ -283,9 +281,6 @@ const errorLogsSlice = createSlice({
     },
     setAutoRefresh: (state, action) => {
       state.ui.autoRefresh = action.payload;
-    },
-    setRefreshInterval: (state, action) => {
-      state.ui.refreshInterval = action.payload;
     },
     setRefreshInterval: (state, action) => {
       state.ui.refreshInterval = action.payload;
@@ -377,7 +372,6 @@ const errorLogsSlice = createSlice({
       .addCase(bulkDeleteErrorLogs.fulfilled, (state, action) => {
         state.bulkOperations.loading = false;
         state.bulkOperations.operation = null;
-        // Remove deleted items from state
         const deletedIds = state.ui.selectedItems;
         state.errorLogs.data = state.errorLogs.data.filter(
           (log) => !deletedIds.includes(log.uploadId)
@@ -415,27 +409,5 @@ export const {
   clearSelectedErrorLog,
   resetErrorLogs,
 } = errorLogsSlice.actions;
-
-// Selectors
-export const selectErrorLogs = (state) => state.errorLogs.errorLogs;
-export const selectSelectedErrorLog = (state) =>
-  state.errorLogs.selectedErrorLog;
-export const selectErrorStats = (state) => state.errorLogs.stats;
-export const selectErrorLogsSearch = (state) => state.errorLogs.search;
-export const selectErrorLogsFilters = (state) => state.errorLogs.filters;
-export const selectErrorLogsUI = (state) => state.errorLogs.ui;
-export const selectBulkOperations = (state) => state.errorLogs.bulkOperations;
-export const selectErrorLogsExport = (state) => state.errorLogs.export;
-
-export const selectErrorLogsLoading = (state) =>
-  state.errorLogs.errorLogs.loading ||
-  state.errorLogs.selectedErrorLog.loading ||
-  state.errorLogs.stats.loading ||
-  state.errorLogs.search.loading;
-
-export const selectSelectedErrorLogIds = (state) =>
-  state.errorLogs.ui.selectedItems;
-export const selectHasSelectedErrorLogs = (state) =>
-  state.errorLogs.ui.selectedItems.length > 0;
 
 export default errorLogsSlice.reducer;

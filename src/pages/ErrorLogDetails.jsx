@@ -34,7 +34,6 @@ import {
   ArrowBack as BackIcon,
   Refresh as RefreshIcon,
   Download as DownloadIcon,
-  Share as ShareIcon,
   ExpandMore as ExpandMoreIcon,
   Error as ErrorIcon,
   Warning as WarningIcon,
@@ -65,6 +64,7 @@ import {
   formatDuration,
   formatNumber,
 } from '../utils/formatters';
+import ErrorsByTypeSection from '../components/errorLogs/ErrorsByTypeSection';
 
 const ErrorLogDetails = () => {
   const { uploadId } = useParams();
@@ -105,17 +105,6 @@ const ErrorLogDetails = () => {
       addNotification({
         type: 'info',
         message: 'Downloading error log details...',
-      })
-    );
-  };
-
-  const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
-    dispatch(
-      addNotification({
-        type: 'success',
-        message: 'Link copied to clipboard',
-        autoHideDuration: 2000,
       })
     );
   };
@@ -199,9 +188,6 @@ const ErrorLogDetails = () => {
             <Typography variant="h4" component="h1">
               Error Log Details
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Upload ID: {data.uploadId}
-            </Typography>
           </Box>
         </Box>
 
@@ -209,11 +195,6 @@ const ErrorLogDetails = () => {
           <Tooltip title="Refresh">
             <IconButton onClick={handleRefresh}>
               <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Share">
-            <IconButton onClick={handleShare}>
-              <ShareIcon />
             </IconButton>
           </Tooltip>
           <Button
@@ -290,17 +271,6 @@ const ErrorLogDetails = () => {
                     </Typography>
                     <Typography variant="body1">
                       {formatDuration(data.processingTime)}
-                    </Typography>
-                  </Box>
-                </Grid>
-
-                <Grid item xs={12} sm={6}>
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      IP Address
-                    </Typography>
-                    <Typography variant="body1" fontFamily="monospace">
-                      {data.ipAddress}
                     </Typography>
                   </Box>
                 </Grid>
@@ -385,114 +355,7 @@ const ErrorLogDetails = () => {
       )}
 
       {/* Errors by Type */}
-      {data.errorsByType && Object.keys(data.errorsByType).length > 0 && (
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Errors by Record Type
-            </Typography>
-
-            {Object.entries(data.errorsByType).map(
-              ([recordType, errorData]) => (
-                <Accordion key={recordType}>
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 2,
-                        width: '100%',
-                      }}
-                    >
-                      <Typography variant="h6">{recordType}</Typography>
-                      <Chip
-                        label={`${errorData.totalErrors} errors`}
-                        color="error"
-                        size="small"
-                      />
-                    </Box>
-                  </AccordionSummary>
-
-                  <AccordionDetails>
-                    {/* Validation Errors */}
-                    {errorData.validationErrors &&
-                      errorData.validationErrors.length > 0 && (
-                        <Box sx={{ mb: 3 }}>
-                          <Typography
-                            variant="subtitle1"
-                            gutterBottom
-                            sx={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 1,
-                            }}
-                          >
-                            <ErrorIcon color="error" />
-                            Save Errors ({errorData.saveErrors.length})
-                          </Typography>
-
-                          <List dense>
-                            {errorData.saveErrors.map((error, index) => (
-                              <ListItem key={index}>
-                                <ListItemIcon>
-                                  <CodeIcon />
-                                </ListItemIcon>
-                                <ListItemText
-                                  primary={error}
-                                  primaryTypographyProps={{
-                                    fontFamily: 'monospace',
-                                    fontSize: '0.875rem',
-                                  }}
-                                />
-                              </ListItem>
-                            ))}
-                          </List>
-                        </Box>
-                      )}
-                  </AccordionDetails>
-                </Accordion>
-              )
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* System Information */}
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            System Information
-          </Typography>
-
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" color="text.secondary">
-                  User Agent
-                </Typography>
-                <Typography
-                  variant="body2"
-                  fontFamily="monospace"
-                  sx={{ wordBreak: 'break-all' }}
-                >
-                  {data.userAgent || 'Not available'}
-                </Typography>
-              </Box>
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" color="text.secondary">
-                  User ID
-                </Typography>
-                <Typography variant="body1">
-                  {data.userId || 'Anonymous'}
-                </Typography>
-              </Box>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
+      {data && <ErrorsByTypeSection initialData={data} />}
     </Box>
   );
 };
