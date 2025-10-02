@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -70,6 +71,7 @@ import {
 const FileUpload = () => {
   const theme = useTheme();
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const [selectedFile, setSelectedFile] = React.useState(null);
 
   const { upload, stats, ui, health, processing } = useAppSelector(
@@ -260,7 +262,7 @@ const FileUpload = () => {
   };
 
   return (
-    <Box>
+    <Box sx={{ flexGrow: 1, p: 3 }}>
       {/* Header */}
       <Box
         sx={{
@@ -807,6 +809,129 @@ const FileUpload = () => {
                     >
                       No upload history available
                     </Typography>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Error Summary Card */}
+            <Grid item xs={12}>
+              <Card>
+                <CardContent>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      mb: 2,
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <ErrorIcon sx={{ mr: 1, color: 'error.main' }} />
+                      <Typography variant="h6">Recent Errors</Typography>
+                    </Box>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="error"
+                      onClick={() => navigate('/error-logs')}
+                      startIcon={<ViewIcon />}
+                    >
+                      View All Errors
+                    </Button>
+                  </Box>
+
+                  {/* Error Summary from Upload Result */}
+                  {result?.results?.summary?.totalErrors > 0 ? (
+                    <Box>
+                      <Alert severity="warning" sx={{ mb: 2 }}>
+                        <Typography variant="body2" gutterBottom>
+                          <strong>Latest Upload Errors</strong>
+                        </Typography>
+                        <Typography variant="body2">
+                          {formatNumber(result.results.summary.totalErrors)}{' '}
+                          errors detected in the last upload
+                        </Typography>
+                      </Alert>
+
+                      {/* Breakdown by Record Type */}
+                      {result.results.summary.recordTypes && (
+                        <Box>
+                          <Typography variant="subtitle2" gutterBottom>
+                            Errors by Record Type
+                          </Typography>
+                          <List dense>
+                            {Object.entries(result.results.summary.recordTypes)
+                              .filter(([, counts]) => counts.errors > 0)
+                              .sort(([, a], [, b]) => b.errors - a.errors)
+                              .slice(0, 5)
+                              .map(([type, counts]) => (
+                                <ListItem key={type} sx={{ px: 0, py: 0.5 }}>
+                                  <ListItemIcon sx={{ minWidth: 32 }}>
+                                    <WarningIcon
+                                      fontSize="small"
+                                      color="warning"
+                                    />
+                                  </ListItemIcon>
+                                  <ListItemText
+                                    primary={
+                                      <Box
+                                        sx={{
+                                          display: 'flex',
+                                          justifyContent: 'space-between',
+                                        }}
+                                      >
+                                        <Typography
+                                          variant="body2"
+                                          fontFamily="monospace"
+                                        >
+                                          {type}
+                                        </Typography>
+                                        <Chip
+                                          label={`${formatNumber(
+                                            counts.errors
+                                          )} errors`}
+                                          size="small"
+                                          color="error"
+                                          variant="outlined"
+                                        />
+                                      </Box>
+                                    }
+                                  />
+                                </ListItem>
+                              ))}
+                          </List>
+
+                          <Divider sx={{ my: 2 }} />
+
+                          <Button
+                            fullWidth
+                            variant="contained"
+                            color="error"
+                            onClick={() => navigate('/error-logs')}
+                            endIcon={<ViewIcon />}
+                          >
+                            View Error Details & Logs
+                          </Button>
+                        </Box>
+                      )}
+                    </Box>
+                  ) : result ? (
+                    <Alert severity="success">
+                      <Typography variant="body2">
+                        No errors in the last upload. All records processed
+                        successfully!
+                      </Typography>
+                    </Alert>
+                  ) : (
+                    <Box sx={{ textAlign: 'center', py: 3 }}>
+                      <InfoIcon
+                        sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }}
+                      />
+                      <Typography variant="body2" color="text.secondary">
+                        Upload a file to see error information
+                      </Typography>
+                    </Box>
                   )}
                 </CardContent>
               </Card>

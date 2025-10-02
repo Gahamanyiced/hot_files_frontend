@@ -58,18 +58,35 @@ const ErrorStatsOverview = ({ stats, loading, onRefresh }) => {
   }
 
   const pieData = [
-    { name: 'Completed', value: stats.completedUploads, color: theme.palette.success.main },
-    { name: 'Failed', value: stats.failedUploads, color: theme.palette.error.main },
-    { name: 'With Errors', value: stats.uploadsWithErrors, color: theme.palette.warning.main },
+    {
+      name: 'Completed',
+      value: stats.completedUploads,
+      color: theme.palette.success.main,
+    },
+    {
+      name: 'Failed',
+      value: stats.failedUploads,
+      color: theme.palette.error.main,
+    },
+    {
+      name: 'With Errors',
+      value: stats.uploadsWithErrors,
+      color: theme.palette.warning.main,
+    },
   ];
 
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h6">
-          Error Statistics Overview
-        </Typography>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 3,
+        }}
+      >
+        <Typography variant="h6">Error Statistics Overview</Typography>
         <Tooltip title="Refresh Statistics">
           <IconButton onClick={onRefresh} disabled={loading}>
             <RefreshIcon />
@@ -129,7 +146,9 @@ const ErrorStatsOverview = ({ stats, loading, onRefresh }) => {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }) =>
+                    `${name} ${(percent * 100).toFixed(0)}%`
+                  }
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
@@ -184,23 +203,51 @@ const ErrorStatsOverview = ({ stats, loading, onRefresh }) => {
               <Typography variant="h6" gutterBottom>
                 Processing Statistics
               </Typography>
-              
+
               <Box sx={{ mb: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body2">Total Records Processed</Typography>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    mb: 1,
+                  }}
+                >
+                  <Typography variant="body2">
+                    Total Records Processed
+                  </Typography>
                   <Typography variant="body2" fontWeight="bold">
                     {formatNumber(stats.totalProcessedRecords)}
                   </Typography>
                 </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    mb: 1,
+                  }}
+                >
                   <Typography variant="body2">Total Records Saved</Typography>
-                  <Typography variant="body2" fontWeight="bold" color="success.main">
+                  <Typography
+                    variant="body2"
+                    fontWeight="bold"
+                    color="success.main"
+                  >
                     {formatNumber(stats.totalSavedRecords)}
                   </Typography>
                 </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    mb: 1,
+                  }}
+                >
                   <Typography variant="body2">Total Errors</Typography>
-                  <Typography variant="body2" fontWeight="bold" color="error.main">
+                  <Typography
+                    variant="body2"
+                    fontWeight="bold"
+                    color="error.main"
+                  >
                     {formatNumber(stats.totalErrors)}
                   </Typography>
                 </Box>
@@ -215,23 +262,55 @@ const ErrorStatsOverview = ({ stats, loading, onRefresh }) => {
               <Typography variant="h6" gutterBottom>
                 Performance Metrics
               </Typography>
-              
+
               <Box sx={{ mb: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body2">Average Processing Time</Typography>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    mb: 1,
+                  }}
+                >
+                  <Typography variant="body2">
+                    Average Processing Time
+                  </Typography>
                   <Typography variant="body2" fontWeight="bold">
                     {formatDuration(stats.avgProcessingTime)}
                   </Typography>
                 </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body2">Maximum Processing Time</Typography>
-                  <Typography variant="body2" fontWeight="bold" color="warning.main">
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    mb: 1,
+                  }}
+                >
+                  <Typography variant="body2">
+                    Maximum Processing Time
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    fontWeight="bold"
+                    color="warning.main"
+                  >
                     {formatDuration(stats.maxProcessingTime)}
                   </Typography>
                 </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body2">Minimum Processing Time</Typography>
-                  <Typography variant="body2" fontWeight="bold" color="success.main">
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    mb: 1,
+                  }}
+                >
+                  <Typography variant="body2">
+                    Minimum Processing Time
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    fontWeight="bold"
+                    color="success.main"
+                  >
                     {formatDuration(stats.minProcessingTime)}
                   </Typography>
                 </Box>

@@ -394,7 +394,7 @@ const ErrorLogs = () => {
       {/* Statistics Overview */}
       {stats.data && (
         <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
             <MetricCard
               title="Total Uploads"
               value={stats.data.totalUploads || 0}
@@ -403,7 +403,7 @@ const ErrorLogs = () => {
               loading={stats.loading}
             />
           </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
             <MetricCard
               title="Failed Uploads"
               value={stats.data.failedUploads || 0}
@@ -412,7 +412,7 @@ const ErrorLogs = () => {
               loading={stats.loading}
             />
           </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
             <MetricCard
               title="Success Rate"
               value={`${stats.data.successRate || 0}%`}
@@ -421,12 +421,12 @@ const ErrorLogs = () => {
               loading={stats.loading}
             />
           </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
             <MetricCard
               title="Avg Processing Time"
               value={
                 stats.data.avgProcessingTime
-                  ? `${stats.data.avgProcessingTime}ms`
+                  ? formatDuration(stats.data.avgProcessingTime)
                   : 'N/A'
               }
               icon={ProcessingIcon}
