@@ -29,7 +29,7 @@ export const performQuickLookup = createAsyncThunk(
 const initialState = {
   // Global search
   globalSearch: {
-    results: null,
+    data: null, // Changed from 'results' to 'data' to match API response
     loading: false,
     error: null,
     query: '',
@@ -233,7 +233,7 @@ const searchSlice = createSlice({
 
     // Clear results
     clearGlobalSearchResults: (state) => {
-      state.globalSearch.results = null;
+      state.globalSearch.data = null; // Changed from 'results' to 'data'
       state.globalSearch.error = null;
     },
 
@@ -243,7 +243,7 @@ const searchSlice = createSlice({
     },
 
     clearAllResults: (state) => {
-      state.globalSearch.results = null;
+      state.globalSearch.data = null; // Changed from 'results' to 'data'
       state.globalSearch.error = null;
       state.quickLookup.result = null;
       state.quickLookup.error = null;
@@ -262,7 +262,12 @@ const searchSlice = createSlice({
       })
       .addCase(performGlobalSearch.fulfilled, (state, action) => {
         state.globalSearch.loading = false;
-        state.globalSearch.results = action.payload.data;
+        // Store the data object which contains {tickets, passengers, agents, transactions}
+        state.globalSearch.data = action.payload.data;
+        state.globalSearch.query =
+          action.payload.query || state.globalSearch.query;
+        state.globalSearch.type =
+          action.payload.type || state.globalSearch.type;
         state.globalSearch.lastSearched = new Date().toISOString();
         state.globalSearch.error = null;
 
@@ -276,7 +281,8 @@ const searchSlice = createSlice({
       })
       .addCase(performGlobalSearch.rejected, (state, action) => {
         state.globalSearch.loading = false;
-        state.globalSearch.error = action.payload;
+        state.globalSearch.error =
+          action.payload?.message || action.payload || 'Search failed';
       })
 
       // Quick Lookup
@@ -300,7 +306,8 @@ const searchSlice = createSlice({
       })
       .addCase(performQuickLookup.rejected, (state, action) => {
         state.quickLookup.loading = false;
-        state.quickLookup.error = action.payload;
+        state.quickLookup.error =
+          action.payload?.message || action.payload || 'Lookup failed';
       });
   },
 });
@@ -355,8 +362,41 @@ export const selectSearchError = (state) =>
   state.search.suggestions.error;
 
 export const selectHasSearchResults = (state) =>
-  Boolean(state.search.globalSearch.results) ||
+  Boolean(state.search.globalSearch.data) ||
   Boolean(state.search.quickLookup.result);
+
+// New selector to get total result count
+export const selectTotalSearchResults = (state) => {
+  const data = state.search.globalSearch.data;
+  if (!data) return 0;
+
+  return (
+    (data.tickets?.length || 0) +
+    (data.passengers?.length || 0) +
+    (data.agents?.length || 0) +
+    (data.transactions?.length || 0)
+  );
+};
+
+// New selector to get results by category
+export const selectSearchResultsByCategory = (state) => {
+  const data = state.search.globalSearch.data;
+  if (!data) {
+    return {
+      tickets: [],
+      passengers: [],
+      agents: [],
+      transactions: [],
+    };
+  }
+
+  return {
+    tickets: data.tickets || [],
+    passengers: data.passengers || [],
+    agents: data.agents || [],
+    transactions: data.transactions || [],
+  };
+};
 
 export const selectRecentSearchQueries = (state) =>
   state.search.searchHistory.queries.slice(0, 5);

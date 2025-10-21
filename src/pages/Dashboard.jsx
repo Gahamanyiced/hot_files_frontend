@@ -23,11 +23,24 @@ import {
   Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
 
 // Hooks
 import { useAppSelector, useAppDispatch } from '../hooks/redux';
-import { 
+import {
   fetchExecutiveDashboard,
   setDateRange,
   setCurrency,
@@ -46,14 +59,12 @@ import FilesSummaryCard from '../components/dashboard/FilesSummaryCard';
 const Dashboard = () => {
   const theme = useTheme();
   const dispatch = useAppDispatch();
-  
-  const {
-    executiveDashboard,
-    settings,
-    widgets,
-  } = useAppSelector((state) => state.dashboard);
 
-  console.log('executive',executiveDashboard)
+  const { executiveDashboard, settings, widgets } = useAppSelector(
+    (state) => state.dashboard
+  );
+
+  console.log('executive', executiveDashboard);
 
   const { loading, data, error, lastUpdated } = executiveDashboard;
 
@@ -90,18 +101,22 @@ const Dashboard = () => {
       currency: settings.currency,
     };
     dispatch(fetchExecutiveDashboard(params));
-    dispatch(addNotification({
-      type: 'info',
-      message: 'Dashboard refreshed',
-      autoHideDuration: 2000,
-    }));
+    dispatch(
+      addNotification({
+        type: 'info',
+        message: 'Dashboard refreshed',
+        autoHideDuration: 2000,
+      })
+    );
   };
 
   const handleDateRangeChange = (field, value) => {
-    dispatch(setDateRange({
-      ...settings.dateRange,
-      [field]: value,
-    }));
+    dispatch(
+      setDateRange({
+        ...settings.dateRange,
+        [field]: value,
+      })
+    );
   };
 
   // Sample data for charts (replace with real data from API)
@@ -142,13 +157,20 @@ const Dashboard = () => {
   }
 
   return (
-    <Box sx={{ flexGrow: 1 }}>
+    <Box >
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 3,
+        }}
+      >
         <Typography variant="h4" component="h1" fontWeight="bold">
           Executive Dashboard
         </Typography>
-        
+
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           {/* Date Range Filters */}
           <DatePicker
@@ -163,7 +185,7 @@ const Dashboard = () => {
             onChange={(value) => handleDateRangeChange('endDate', value)}
             slotProps={{ textField: { size: 'small' } }}
           />
-          
+
           {/* Refresh Button */}
           <Tooltip title="Refresh Dashboard">
             <IconButton onClick={handleRefresh} disabled={loading}>
@@ -195,12 +217,14 @@ const Dashboard = () => {
             />
           </Grid>
         )}
-        
+
         {widgets.totalRevenue && (
           <Grid item xs={12} sm={6} md={3}>
             <MetricCard
               title="Total Revenue"
-              value={`$${(data?.overview?.totalRevenue?.totalAmount || 0).toLocaleString()}`}
+              value={`$${(
+                data?.overview?.totalRevenue?.totalAmount || 0
+              ).toLocaleString()}`}
               change="+8.3%"
               trend="up"
               icon={MoneyIcon}
@@ -209,12 +233,14 @@ const Dashboard = () => {
             />
           </Grid>
         )}
-        
+
         {widgets.totalCommission && (
           <Grid item xs={12} sm={6} md={3}>
             <MetricCard
               title="Total Commission"
-              value={`$${(data?.overview?.totalCommission?.totalCommission || 0).toLocaleString()}`}
+              value={`$${(
+                data?.overview?.totalCommission?.totalCommission || 0
+              ).toLocaleString()}`}
               change="+5.7%"
               trend="up"
               icon={TrendingUpIcon}
@@ -223,7 +249,7 @@ const Dashboard = () => {
             />
           </Grid>
         )}
-        
+
         {widgets.topOffices && (
           <Grid item xs={12} sm={6} md={3}>
             <MetricCard
@@ -250,19 +276,23 @@ const Dashboard = () => {
                   <XAxis dataKey="name" />
                   <YAxis />
                   <RechartsTooltip />
-                  <Line 
-                    type="monotone" 
-                    dataKey="revenue" 
-                    stroke={theme.palette.primary.main} 
+                  <Line
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke={theme.palette.primary.main}
                     strokeWidth={3}
-                    dot={{ fill: theme.palette.primary.main, strokeWidth: 2, r: 4 }}
+                    dot={{
+                      fill: theme.palette.primary.main,
+                      strokeWidth: 2,
+                      r: 4,
+                    }}
                   />
                 </LineChart>
               </ResponsiveContainer>
             </ChartCard>
           </Grid>
         )}
-        
+
         <Grid item xs={12} lg={4}>
           <ChartCard title="Transaction Types" loading={loading}>
             <ResponsiveContainer width="100%" height={300}>
@@ -298,8 +328,8 @@ const Dashboard = () => {
                   <XAxis dataKey="name" />
                   <YAxis />
                   <RechartsTooltip />
-                  <Bar 
-                    dataKey="commission" 
+                  <Bar
+                    dataKey="commission"
                     fill={theme.palette.secondary.main}
                     radius={[4, 4, 0, 0]}
                   />
@@ -314,22 +344,19 @@ const Dashboard = () => {
       <Grid container spacing={3}>
         {widgets.topOffices && (
           <Grid item xs={12} md={6}>
-            <TopOfficesCard 
-              data={data?.topOffices || []}
-              loading={loading}
-            />
+            <TopOfficesCard data={data?.topOffices || []} loading={loading} />
           </Grid>
         )}
-        
+
         {widgets.recentTransactions && (
           <Grid item xs={12} md={6}>
             <RecentTransactionsCard loading={loading} />
           </Grid>
         )}
-        
+
         {widgets.filesSummary && (
           <Grid item xs={12}>
-            <FilesSummaryCard 
+            <FilesSummaryCard
               data={data?.filesSummary || []}
               loading={loading}
             />

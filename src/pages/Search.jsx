@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -53,23 +54,32 @@ import {
   setActiveTab,
   clearGlobalSearchResults,
   clearQuickLookupResult,
-  addToSearchHistory,
+  selectSearchResultsByCategory,
+  selectTotalSearchResults,
 } from '../store/slices/searchSlice';
 import { addNotification } from '../store/slices/uiSlice';
 
 // Utils
-import { formatCurrency, formatDate, formatPassengerName, formatAgentCode } from '../utils/formatters';
+import {
+  formatCurrency,
+  formatDate,
+  formatPassengerName,
+  formatAgentCode,
+  formatTicketNumber,
+} from '../utils/formatters';
 
 const Search = () => {
   const theme = useTheme();
   const dispatch = useAppDispatch();
-  
-  const {
-    globalSearch,
-    quickLookup,
-    searchHistory,
-    ui,
-  } = useAppSelector((state) => state.search);
+  const navigate = useNavigate();
+
+  const { globalSearch, quickLookup, searchHistory, ui } = useAppSelector(
+    (state) => state.search
+  );
+
+  // Use the new selectors
+  const searchResults = useAppSelector(selectSearchResultsByCategory);
+  const totalResults = useAppSelector(selectTotalSearchResults);
 
   const [searchInput, setSearchInput] = React.useState('');
   const [lookupInput, setLookupInput] = React.useState('');
@@ -87,21 +97,25 @@ const Search = () => {
 
   const handleGlobalSearch = (query = searchInput) => {
     if (!query.trim()) return;
-    
-    dispatch(performGlobalSearch({
-      query: query.trim(),
-      type: 'all',
-      limit: 20,
-    }));
+
+    dispatch(
+      performGlobalSearch({
+        query: query.trim(),
+        type: 'all',
+        limit: 20,
+      })
+    );
   };
 
   const handleQuickLookup = () => {
     if (!lookupInput.trim() || !quickLookup.type) return;
-    
-    dispatch(performQuickLookup({
-      type: quickLookup.type,
-      value: lookupInput.trim(),
-    }));
+
+    dispatch(
+      performQuickLookup({
+        type: quickLookup.type,
+        value: lookupInput.trim(),
+      })
+    );
   };
 
   const handleSearchInputChange = (event) => {
@@ -149,59 +163,6 @@ const Search = () => {
     dispatch(clearQuickLookupResult());
   };
 
-  const getResultIcon = (type) => {
-    switch (type) {
-      case 'transaction':
-        return <TransactionIcon />;
-      case 'ticket':
-        return <TicketIcon />;
-      case 'passenger':
-        return <PersonIcon />;
-      case 'office':
-        return <BusinessIcon />;
-      case 'route':
-        return <FlightIcon />;
-      default:
-        return <SearchIcon />;
-    }
-  };
-
-  const getResultColor = (type) => {
-    switch (type) {
-      case 'transaction':
-        return 'primary';
-      case 'ticket':
-        return 'secondary';
-      case 'passenger':
-        return 'success';
-      case 'office':
-        return 'warning';
-      case 'route':
-        return 'info';
-      default:
-        return 'default';
-    }
-  };
-
-  const handleViewDetails = (result) => {
-    switch (result.type) {
-      case 'transaction':
-        window.location.href = `/transactions/${result.id}`;
-        break;
-      case 'ticket':
-        window.location.href = `/tickets/${result.id}`;
-        break;
-      case 'passenger':
-        window.location.href = `/passengers/${result.id}`;
-        break;
-      case 'office':
-        window.location.href = `/offices/${result.id}`;
-        break;
-      default:
-        break;
-    }
-  };
-
   const quickLookupTypes = [
     { value: 'transaction', label: 'Transaction Number' },
     { value: 'ticket', label: 'Ticket Number' },
@@ -230,8 +191,8 @@ const Search = () => {
 
       {/* Search Tabs */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs 
-          value={ui.activeTab} 
+        <Tabs
+          value={ui.activeTab}
           onChange={(event, newValue) => dispatch(setActiveTab(newValue))}
         >
           <Tab label="Global Search" />
@@ -292,82 +253,363 @@ const Search = () => {
               </Alert>
             )}
 
-            {globalSearch.results && (
-              <Card>
+            {/* Results Summary */}
+            {!globalSearch.loading && globalSearch.data && (
+              <Alert severity="info" sx={{ mb: 3 }}>
+                Found {totalResults} result(s) for "{globalSearch.query}"
+                <Box
+                  component="span"
+                  sx={{
+                    ml: 2,
+                    display: 'inline-flex',
+                    gap: 1,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  {searchResults.tickets.length > 0 && (
+                    <Chip
+                      label={`Tickets: ${searchResults.tickets.length}`}
+                      size="small"
+                    />
+                  )}
+                  {searchResults.passengers.length > 0 && (
+                    <Chip
+                      label={`Passengers: ${searchResults.passengers.length}`}
+                      size="small"
+                    />
+                  )}
+                  {searchResults.agents.length > 0 && (
+                    <Chip
+                      label={`Agents: ${searchResults.agents.length}`}
+                      size="small"
+                    />
+                  )}
+                  {searchResults.transactions.length > 0 && (
+                    <Chip
+                      label={`Transactions: ${searchResults.transactions.length}`}
+                      size="small"
+                    />
+                  )}
+                </Box>
+              </Alert>
+            )}
+
+            {/* Tickets Results */}
+            {searchResults.tickets.length > 0 && (
+              <Card sx={{ mb: 3 }}>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    Search Results
+                    <TicketIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Tickets ({searchResults.tickets.length})
                   </Typography>
-                  
-                  {globalSearch.results.length === 0 ? (
+                  <Divider sx={{ mb: 2 }} />
+
+                  <Grid container spacing={2}>
+                    {searchResults.tickets.map((ticket, index) => (
+                      <Grid item xs={12} key={ticket._id || index}>
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            p: 2,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            '&:hover': {
+                              bgcolor: 'action.hover',
+                              boxShadow: 2,
+                            },
+                          }}
+                          onClick={() =>
+                            navigate(`/transactions/${ticket.TRNN}`)
+                          }
+                        >
+                          <Grid container spacing={2}>
+                            <Grid item xs={12} sm={6} md={3}>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                Ticket Number
+                              </Typography>
+                              <Typography
+                                variant="body1"
+                                fontFamily="monospace"
+                                fontWeight={600}
+                              >
+                                {formatTicketNumber(ticket.TDNR)}
+                              </Typography>
+                            </Grid>
+
+                            <Grid item xs={12} sm={6} md={3}>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                Transaction Number
+                              </Typography>
+                              <Typography
+                                variant="body1"
+                                fontFamily="monospace"
+                              >
+                                TXN-{ticket.TRNN}
+                              </Typography>
+                            </Grid>
+
+                            <Grid item xs={12} sm={6} md={2}>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                Issue Date
+                              </Typography>
+                              <Typography variant="body1">
+                                {formatDate(ticket.DAIS)}
+                              </Typography>
+                            </Grid>
+
+                            <Grid item xs={12} sm={6} md={2}>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                Agent Code
+                              </Typography>
+                              <Typography
+                                variant="body1"
+                                fontFamily="monospace"
+                              >
+                                {formatAgentCode(ticket.AGTN)}
+                              </Typography>
+                            </Grid>
+
+                            <Grid item xs={12} sm={6} md={2}>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                Type
+                              </Typography>
+                              <Chip
+                                label={ticket.TRNC || 'STD'}
+                                size="small"
+                                color={
+                                  ticket.TRNC === 'RFND'
+                                    ? 'error'
+                                    : ticket.TRNC === 'EXCH'
+                                    ? 'warning'
+                                    : ticket.TRNC === 'VOID'
+                                    ? 'secondary'
+                                    : ticket.TRNC === 'EMDA'
+                                    ? 'info'
+                                    : 'default'
+                                }
+                              />
+                            </Grid>
+                          </Grid>
+
+                          {ticket.PNRR && (
+                            <Box sx={{ mt: 1 }}>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                PNR:{' '}
+                                <Typography
+                                  component="span"
+                                  variant="caption"
+                                  fontFamily="monospace"
+                                >
+                                  {ticket.PNRR}
+                                </Typography>
+                              </Typography>
+                            </Box>
+                          )}
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Passengers Results */}
+            {searchResults.passengers.length > 0 && (
+              <Card sx={{ mb: 3 }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    <PersonIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Passengers ({searchResults.passengers.length})
+                  </Typography>
+                  <Divider sx={{ mb: 2 }} />
+
+                  <Grid container spacing={2}>
+                    {searchResults.passengers.map((passenger, index) => (
+                      <Grid item xs={12} key={passenger._id || index}>
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            p: 2,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            '&:hover': {
+                              bgcolor: 'action.hover',
+                              boxShadow: 2,
+                            },
+                          }}
+                          onClick={() =>
+                            navigate(`/passengers/${passenger.TRNN}`)
+                          }
+                        >
+                          <Grid container spacing={2} alignItems="center">
+                            <Grid item xs={12} sm={6}>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                Passenger Name
+                              </Typography>
+                              <Typography variant="body1" fontWeight={600}>
+                                {formatPassengerName(passenger.PXNM)}
+                              </Typography>
+                            </Grid>
+
+                            <Grid item xs={12} sm={3}>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                Type
+                              </Typography>
+                              <Chip
+                                label={passenger.PXTP || 'ADT'}
+                                size="small"
+                                color={
+                                  passenger.PXTP === 'CHD'
+                                    ? 'warning'
+                                    : 'default'
+                                }
+                              />
+                            </Grid>
+
+                            <Grid item xs={12} sm={3}>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                Transaction
+                              </Typography>
+                              <Typography
+                                variant="body1"
+                                fontFamily="monospace"
+                              >
+                                TXN-{passenger.TRNN}
+                              </Typography>
+                            </Grid>
+                          </Grid>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Transactions Results */}
+            {searchResults.transactions.length > 0 && (
+              <Card sx={{ mb: 3 }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    <TransactionIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Transactions ({searchResults.transactions.length})
+                  </Typography>
+                  <Divider sx={{ mb: 2 }} />
+
+                  <Grid container spacing={2}>
+                    {searchResults.transactions.map((transaction, index) => (
+                      <Grid item xs={12} key={transaction._id || index}>
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            p: 2,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            '&:hover': {
+                              bgcolor: 'action.hover',
+                              boxShadow: 2,
+                            },
+                          }}
+                          onClick={() =>
+                            navigate(`/transactions/${transaction.TRNN}`)
+                          }
+                        >
+                          <Typography variant="body1" fontWeight={600}>
+                            Transaction: TXN-{transaction.TRNN}
+                          </Typography>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Agents Results */}
+            {searchResults.agents.length > 0 && (
+              <Card sx={{ mb: 3 }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    <BusinessIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Agents ({searchResults.agents.length})
+                  </Typography>
+                  <Divider sx={{ mb: 2 }} />
+
+                  <Grid container spacing={2}>
+                    {searchResults.agents.map((agent, index) => (
+                      <Grid item xs={12} key={agent._id || index}>
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            p: 2,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            '&:hover': {
+                              bgcolor: 'action.hover',
+                              boxShadow: 2,
+                            },
+                          }}
+                          onClick={() => navigate(`/offices/${agent.AGTN}`)}
+                        >
+                          <Typography variant="body1" fontWeight={600}>
+                            Agent: {formatAgentCode(agent.AGTN)}
+                          </Typography>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* No Results */}
+            {!globalSearch.loading &&
+              globalSearch.data &&
+              totalResults === 0 && (
+                <Card>
+                  <CardContent>
                     <Box sx={{ textAlign: 'center', py: 4 }}>
-                      <SearchIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                      <SearchIcon
+                        sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }}
+                      />
                       <Typography variant="h6" color="text.secondary">
                         No results found
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        Try adjusting your search terms
+                        Try adjusting your search terms for "
+                        {globalSearch.query}"
                       </Typography>
                     </Box>
-                  ) : (
-                    <List>
-                      {globalSearch.results.map((result, index) => (
-                        <React.Fragment key={index}>
-                          <ListItem sx={{ px: 0 }}>
-                            <ListItemIcon>
-                              {getResultIcon(result.type)}
-                            </ListItemIcon>
-                            <ListItemText
-                              primary={
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                                  <Typography variant="body1" fontWeight={500}>
-                                    {result.title}
-                                  </Typography>
-                                  <Chip 
-                                    label={result.type} 
-                                    size="small" 
-                                    color={getResultColor(result.type)}
-                                  />
-                                  {result.amount && (
-                                    <Chip 
-                                      label={formatCurrency(result.amount)} 
-                                      size="small" 
-                                      variant="outlined"
-                                    />
-                                  )}
-                                </Box>
-                              }
-                              secondary={
-                                <Box>
-                                  <Typography variant="body2" color="text.secondary">
-                                    {result.description}
-                                  </Typography>
-                                  {result.metadata && (
-                                    <Typography variant="caption" color="text.secondary">
-                                      {Object.entries(result.metadata).map(([key, value]) => 
-                                        `${key}: ${value}`
-                                      ).join(' • ')}
-                                    </Typography>
-                                  )}
-                                </Box>
-                              }
-                            />
-                            <ListItemSecondaryAction>
-                              <Tooltip title="View Details">
-                                <IconButton onClick={() => handleViewDetails(result)}>
-                                  <ViewIcon />
-                                </IconButton>
-                              </Tooltip>
-                            </ListItemSecondaryAction>
-                          </ListItem>
-                          {index < globalSearch.results.length - 1 && <Divider />}
-                        </React.Fragment>
-                      ))}
-                    </List>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                  </CardContent>
+                </Card>
+              )}
           </Grid>
 
           {/* Search History Sidebar */}
@@ -378,7 +620,7 @@ const Search = () => {
                   <HistoryIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
                   Recent Searches
                 </Typography>
-                
+
                 {searchHistory.queries.length === 0 ? (
                   <Typography variant="body2" color="text.secondary">
                     No recent searches
@@ -412,7 +654,7 @@ const Search = () => {
                 <Typography variant="h6" gutterBottom>
                   Search Tips
                 </Typography>
-                
+
                 <List dense>
                   <ListItem sx={{ px: 0 }}>
                     <ListItemText
@@ -454,7 +696,7 @@ const Search = () => {
               <Typography variant="h6" gutterBottom>
                 Quick Lookup
               </Typography>
-              
+
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
                 Find specific records by exact identifiers
               </Typography>
@@ -467,7 +709,9 @@ const Search = () => {
                       <Select
                         value={quickLookup.type}
                         label="Lookup Type"
-                        onChange={(e) => dispatch(setLookupType(e.target.value))}
+                        onChange={(e) =>
+                          dispatch(setLookupType(e.target.value))
+                        }
                       >
                         {quickLookupTypes.map((type) => (
                           <MenuItem key={type.value} value={type.value}>
@@ -477,16 +721,20 @@ const Search = () => {
                       </Select>
                     </FormControl>
                   </Grid>
-                  
+
                   <Grid item xs={12} sm={8}>
                     <TextField
                       fullWidth
                       placeholder={
-                        quickLookup.type === 'transaction' ? 'Enter transaction number (e.g., 123456)' :
-                        quickLookup.type === 'ticket' ? 'Enter ticket number (e.g., 123-4567890123)' :
-                        quickLookup.type === 'passenger' ? 'Enter passenger name' :
-                        quickLookup.type === 'agent' ? 'Enter agent code (e.g., 12345678)' :
-                        'Select lookup type first'
+                        quickLookup.type === 'transaction'
+                          ? 'Enter transaction number (e.g., 123456)'
+                          : quickLookup.type === 'ticket'
+                          ? 'Enter ticket number (e.g., 123-4567890123)'
+                          : quickLookup.type === 'passenger'
+                          ? 'Enter passenger name'
+                          : quickLookup.type === 'agent'
+                          ? 'Enter agent code (e.g., 12345678)'
+                          : 'Select lookup type first'
                       }
                       value={lookupInput}
                       onChange={handleLookupInputChange}
@@ -503,13 +751,17 @@ const Search = () => {
                     />
                   </Grid>
                 </Grid>
-                
+
                 <Button
                   type="submit"
                   variant="contained"
                   size="large"
                   startIcon={<SearchIcon />}
-                  disabled={!lookupInput.trim() || !quickLookup.type || quickLookup.loading}
+                  disabled={
+                    !lookupInput.trim() ||
+                    !quickLookup.type ||
+                    quickLookup.loading
+                  }
                 >
                   {quickLookup.loading ? 'Looking up...' : 'Lookup'}
                 </Button>
@@ -535,89 +787,12 @@ const Search = () => {
                   <Typography variant="h6" gutterBottom>
                     Lookup Result
                   </Typography>
-                  
-                  {quickLookup.result ? (
-                    <Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-                        {getResultIcon(quickLookup.type)}
-                        <Box>
-                          <Typography variant="h6">
-                            {quickLookup.result.title}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {quickLookup.result.description}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ ml: 'auto' }}>
-                          <Button
-                            variant="contained"
-                            startIcon={<ViewIcon />}
-                            onClick={() => handleViewDetails(quickLookup.result)}
-                          >
-                            View Details
-                          </Button>
-                        </Box>
-                      </Box>
 
-                      {/* Result Details */}
-                      <Grid container spacing={2}>
-                        {Object.entries(quickLookup.result.details || {}).map(([key, value]) => (
-                          <Grid item xs={12} sm={6} md={4} key={key}>
-                            <Paper variant="outlined" sx={{ p: 2 }}>
-                              <Typography variant="body2" color="text.secondary">
-                                {key.replace(/([A-Z])/g, ' $1').trim()}
-                              </Typography>
-                              <Typography variant="body1" fontWeight={500}>
-                                {typeof value === 'number' && key.toLowerCase().includes('amount') 
-                                  ? formatCurrency(value)
-                                  : typeof value === 'string' && value.match(/^\d{6}$/)
-                                  ? formatDate(value)
-                                  : value
-                                }
-                              </Typography>
-                            </Paper>
-                          </Grid>
-                        ))}
-                      </Grid>
-
-                      {/* Related Information */}
-                      {quickLookup.result.related && quickLookup.result.related.length > 0 && (
-                        <Box sx={{ mt: 3 }}>
-                          <Typography variant="subtitle1" gutterBottom>
-                            Related Records
-                          </Typography>
-                          <List>
-                            {quickLookup.result.related.map((relatedItem, index) => (
-                              <ListItem key={index} sx={{ px: 0 }}>
-                                <ListItemIcon>
-                                  {getResultIcon(relatedItem.type)}
-                                </ListItemIcon>
-                                <ListItemText
-                                  primary={relatedItem.title}
-                                  secondary={relatedItem.description}
-                                />
-                                <ListItemSecondaryAction>
-                                  <IconButton onClick={() => handleViewDetails(relatedItem)}>
-                                    <ViewIcon />
-                                  </IconButton>
-                                </ListItemSecondaryAction>
-                              </ListItem>
-                            ))}
-                          </List>
-                        </Box>
-                      )}
-                    </Box>
-                  ) : (
-                    <Box sx={{ textAlign: 'center', py: 4 }}>
-                      <SearchIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-                      <Typography variant="h6" color="text.secondary">
-                        No record found
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        The {quickLookup.type} "{quickLookup.value}" was not found
-                      </Typography>
-                    </Box>
-                  )}
+                  <Box sx={{ textAlign: 'center', py: 4 }}>
+                    <Typography variant="body1" color="text.secondary">
+                      Quick Lookup results will be displayed here
+                    </Typography>
+                  </Box>
                 </CardContent>
               </Card>
             )}
@@ -631,7 +806,7 @@ const Search = () => {
                   <HistoryIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
                   Recent Lookups
                 </Typography>
-                
+
                 {searchHistory.lookups.length === 0 ? (
                   <Typography variant="body2" color="text.secondary">
                     No recent lookups
@@ -646,11 +821,13 @@ const Search = () => {
                         sx={{ px: 0 }}
                       >
                         <ListItemIcon sx={{ minWidth: 32 }}>
-                          {getResultIcon(item.type)}
+                          <SearchIcon fontSize="small" />
                         </ListItemIcon>
                         <ListItemText
                           primary={item.value}
-                          secondary={`${item.type} • ${formatDate(item.timestamp)}`}
+                          secondary={`${item.type} • ${formatDate(
+                            item.timestamp
+                          )}`}
                         />
                       </ListItem>
                     ))}
@@ -659,21 +836,20 @@ const Search = () => {
               </CardContent>
             </Card>
 
-            {/* Popular Lookups */}
+            {/* Quick Actions */}
             <Card sx={{ mt: 2 }}>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
                   <TrendingIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
                   Quick Actions
                 </Typography>
-                
+
                 <List dense>
-                  <ListItem 
-                    button 
+                  <ListItem
+                    button
                     sx={{ px: 0 }}
                     onClick={() => {
                       dispatch(setLookupType('transaction'));
-                      dispatch(setActiveTab(1));
                     }}
                   >
                     <ListItemIcon sx={{ minWidth: 32 }}>
@@ -681,13 +857,12 @@ const Search = () => {
                     </ListItemIcon>
                     <ListItemText primary="Lookup Transaction" />
                   </ListItem>
-                  
-                  <ListItem 
-                    button 
+
+                  <ListItem
+                    button
                     sx={{ px: 0 }}
                     onClick={() => {
                       dispatch(setLookupType('ticket'));
-                      dispatch(setActiveTab(1));
                     }}
                   >
                     <ListItemIcon sx={{ minWidth: 32 }}>
@@ -695,13 +870,12 @@ const Search = () => {
                     </ListItemIcon>
                     <ListItemText primary="Lookup Ticket" />
                   </ListItem>
-                  
-                  <ListItem 
-                    button 
+
+                  <ListItem
+                    button
                     sx={{ px: 0 }}
                     onClick={() => {
                       dispatch(setLookupType('passenger'));
-                      dispatch(setActiveTab(1));
                     }}
                   >
                     <ListItemIcon sx={{ minWidth: 32 }}>
@@ -709,13 +883,12 @@ const Search = () => {
                     </ListItemIcon>
                     <ListItemText primary="Find Passenger" />
                   </ListItem>
-                  
-                  <ListItem 
-                    button 
+
+                  <ListItem
+                    button
                     sx={{ px: 0 }}
                     onClick={() => {
                       dispatch(setLookupType('agent'));
-                      dispatch(setActiveTab(1));
                     }}
                   >
                     <ListItemIcon sx={{ minWidth: 32 }}>
