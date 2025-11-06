@@ -1,3 +1,4 @@
+// src/store/slices/dashboardSlice.js - Updated for new API structure
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { dashboardApi } from '../../services/hotFilesApi';
 
@@ -6,7 +7,20 @@ export const fetchExecutiveDashboard = createAsyncThunk(
   'dashboard/fetchExecutiveDashboard',
   async (params, { rejectWithValue }) => {
     try {
-      const response = await dashboardApi.getExecutiveDashboard(params);
+      // Transform params to API format
+      const apiParams = {
+        startDate: params.startDate || undefined,
+        endDate: params.endDate || undefined,
+        currency: params.currency || 'USD',
+        allCurrencies: params.allCurrencies ? 'true' : 'false',
+      };
+
+      // Remove undefined values
+      Object.keys(apiParams).forEach(
+        (key) => apiParams[key] === undefined && delete apiParams[key]
+      );
+
+      const response = await dashboardApi.getExecutiveDashboard(apiParams);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data || error.message);
@@ -49,9 +63,10 @@ const initialState = {
     autoRefresh: true,
     refreshInterval: 300000, // 5 minutes
     currency: 'USD',
+    allCurrencies: false, // Single currency mode by default
     dateRange: {
-      startDate: null,
-      endDate: null,
+      startDate: null, // YYMMDD format
+      endDate: null, // YYMMDD format
     },
     viewMode: 'overview', // 'overview' | 'detailed'
   },
@@ -63,12 +78,12 @@ const initialState = {
     totalCommission: true,
     topOffices: true,
     recentTransactions: true,
-    revenueChart: true,
-    performanceMetrics: true,
     filesSummary: true,
+    performanceMetrics: true,
+    revenueChart: true,
   },
 
-  // Cache
+  // Cache for performance
   cache: {
     executiveDashboard: new Map(),
     officeDashboard: new Map(),
@@ -80,16 +95,16 @@ const dashboardSlice = createSlice({
   initialState,
   reducers: {
     // Settings actions
-    updateSettings: (state, action) => {
-      state.settings = { ...state.settings, ...action.payload };
-    },
-
     setDateRange: (state, action) => {
       state.settings.dateRange = action.payload;
     },
 
     setCurrency: (state, action) => {
       state.settings.currency = action.payload;
+    },
+
+    setAllCurrencies: (state, action) => {
+      state.settings.allCurrencies = action.payload;
     },
 
     setAutoRefresh: (state, action) => {
@@ -104,19 +119,19 @@ const dashboardSlice = createSlice({
       state.settings.viewMode = action.payload;
     },
 
-    // Widget actions
+    // Widget visibility toggles
     toggleWidget: (state, action) => {
-      const widget = action.payload;
-      state.widgets[widget] = !state.widgets[widget];
+      const widgetName = action.payload;
+      if (widgetName in state.widgets) {
+        state.widgets[widgetName] = !state.widgets[widgetName];
+      }
     },
 
     setWidgetVisibility: (state, action) => {
       const { widget, visible } = action.payload;
-      state.widgets[widget] = visible;
-    },
-
-    resetWidgets: (state) => {
-      state.widgets = initialState.widgets;
+      if (widget in state.widgets) {
+        state.widgets[widget] = visible;
+      }
     },
 
     // Office selection
@@ -158,10 +173,16 @@ const dashboardSlice = createSlice({
         state.executiveDashboard.data = action.payload.data;
         state.executiveDashboard.lastUpdated = new Date().toISOString();
         state.executiveDashboard.error = null;
+
+        // Log the mode for debugging
+        console.log('Dashboard mode:', action.payload.data?.mode);
+        console.log('Dashboard data:', action.payload.data);
       })
       .addCase(fetchExecutiveDashboard.rejected, (state, action) => {
         state.executiveDashboard.loading = false;
-        state.executiveDashboard.error = action.payload;
+        state.executiveDashboard.error = action.payload || {
+          message: 'Failed to fetch executive dashboard data',
+        };
       })
 
       // Office Dashboard
@@ -177,21 +198,23 @@ const dashboardSlice = createSlice({
       })
       .addCase(fetchOfficeDashboard.rejected, (state, action) => {
         state.officeDashboard.loading = false;
-        state.officeDashboard.error = action.payload;
+        state.officeDashboard.error = action.payload || {
+          message: 'Failed to fetch office dashboard data',
+        };
       });
   },
 });
 
+// Export actions
 export const {
-  updateSettings,
   setDateRange,
   setCurrency,
+  setAllCurrencies,
   setAutoRefresh,
   setRefreshInterval,
   setViewMode,
   toggleWidget,
   setWidgetVisibility,
-  resetWidgets,
   setSelectedOffice,
   clearExecutiveDashboard,
   clearOfficeDashboard,
@@ -205,16 +228,6 @@ export const selectExecutiveDashboard = (state) =>
 export const selectOfficeDashboard = (state) => state.dashboard.officeDashboard;
 export const selectDashboardSettings = (state) => state.dashboard.settings;
 export const selectDashboardWidgets = (state) => state.dashboard.widgets;
-export const selectSelectedOffice = (state) =>
-  state.dashboard.officeDashboard.selectedOffice;
 
-// Memoized selectors for performance
-export const selectDashboardLoading = (state) =>
-  state.dashboard.executiveDashboard.loading ||
-  state.dashboard.officeDashboard.loading;
-
-export const selectDashboardError = (state) =>
-  state.dashboard.executiveDashboard.error ||
-  state.dashboard.officeDashboard.error;
-
+// Export reducer
 export default dashboardSlice.reducer;

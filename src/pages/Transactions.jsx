@@ -2,7 +2,6 @@ import React from 'react';
 import {
   Box,
   Typography,
-  Button,
   IconButton,
   Tooltip,
   Tabs,
@@ -11,7 +10,6 @@ import {
   useTheme,
 } from '@mui/material';
 import {
-  Add as AddIcon,
   FilterList as FilterIcon,
   ViewList as ViewListIcon,
   ViewModule as ViewModuleIcon,
@@ -42,10 +40,10 @@ import { addNotification } from '../store/slices/uiSlice';
 
 // Utils
 import {
-  formatCurrency,
   formatDate,
   formatTicketNumber,
   formatAgentCode,
+  formatCurrency,
 } from '../utils/formatters';
 
 const Transactions = () => {
@@ -55,10 +53,9 @@ const Transactions = () => {
   const { transactions, filters, ui, pagination } = useAppSelector(
     (state) => state.transactions
   );
-
   const { loading, data, error } = transactions;
 
-  // Load transactions on component mount and filter changes
+  // Fetch transactions when filters change
   React.useEffect(() => {
     dispatch(fetchTransactions(filters));
   }, [dispatch, filters]);
@@ -98,12 +95,12 @@ const Transactions = () => {
 
   const handleTabChange = (event, newValue) => {
     dispatch(setSelectedTab(newValue));
-    // Apply different filters based on tab
+    // Apply filters based on tab
     switch (newValue) {
-      case 0: // All
+      case 0:
         dispatch(setFilter({ key: 'transactionCode', value: '' }));
         break;
-      case 1: // Recent (last 7 days)
+      case 1:
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         const startDate = sevenDaysAgo
@@ -112,7 +109,7 @@ const Transactions = () => {
           .replace(/-/g, '');
         dispatch(setFilter({ key: 'startDate', value: startDate }));
         break;
-      case 2: // Refunds
+      case 2:
         dispatch(setFilter({ key: 'transactionCode', value: 'RFND' }));
         break;
       default:
@@ -121,7 +118,6 @@ const Transactions = () => {
   };
 
   const handleExport = () => {
-    // Implement export functionality
     dispatch(
       addNotification({
         type: 'info',
@@ -142,7 +138,9 @@ const Transactions = () => {
     }
   };
 
-  // Table columns configuration
+  // -------------------------------
+  // Columns configuration
+  // -------------------------------
   const columns = [
     {
       id: 'TRNN',
@@ -208,10 +206,7 @@ const Transactions = () => {
       render: (value, row) => (
         <Box textAlign="right">
           <Typography variant="body2" fontWeight={500}>
-            {formatCurrency(row.financial?.TDAM)}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {row.financial?.CUTP}
+            {formatCurrency(row.financial?.TDAM, row.financial?.CUTP || 'USD')}
           </Typography>
         </Box>
       ),
@@ -223,10 +218,8 @@ const Transactions = () => {
       render: (value, row) => {
         const segments = row.itinerary || [];
         if (segments.length === 0) return 'N/A';
-
         const firstSegment = segments[0];
         const lastSegment = segments[segments.length - 1];
-
         return (
           <Box>
             <Typography variant="body2">

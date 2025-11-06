@@ -1,446 +1,347 @@
-import { format, parseISO, isValid } from 'date-fns';
+// src/utils/formatters.js - Utility functions for formatting data
 
 /**
- * Format currency values
+ * Parse EDIFACT-style amount strings (e.g. "0000014142A")
+ * @param {string} amountStr - EDIFACT amount string (last char is sign indicator)
+ * @returns {number} Parsed numeric amount
  */
-export const formatCurrency = (value, currency = 'USD', locale = 'en-US') => {
-  if (value === null || value === undefined || isNaN(value)) {
-    return '$0.00';
+export const parseEdifactAmount = (amountStr) => {
+  if (!amountStr) return 0;
+
+  // Extract sign character (last char)
+  const signChar = amountStr.slice(-1);
+  const sign = signChar === '{' ? -1 : 1; // '{' indicates negative in EDIFACT
+  const numeric = parseInt(amountStr.slice(0, -1), 10);
+
+  if (isNaN(numeric)) return 0;
+
+  // EDIFACT typically stores amounts in cents (divide by 100)
+  return (numeric / 100) * sign;
+};
+
+/**
+ * Format currency amount
+ * @param {number|string} amount - The amount to format (can be EDIFACT string)
+ * @param {string} currency - Currency code (USD, EUR, XAF, etc.)
+ * @returns {string} Formatted currency string
+ */
+export const formatCurrency = (amount, currency = 'USD') => {
+  // Handle EDIFACT-style strings (e.g. "0000014142A")
+  if (typeof amount === 'string' && /^[0-9]+[A-Z{]$/.test(amount)) {
+    amount = parseEdifactAmount(amount);
   }
 
-  const numericValue = typeof value === 'string' ? parseFloat(value) : value;
-  
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: currency,
+  if (amount === null || amount === undefined || isNaN(amount)) {
+    return `${currency} 0.00`;
+  }
+
+  const absAmount = Math.abs(amount);
+  const sign = amount < 0 ? '-' : '';
+
+  const currencySymbols = {
+    USD: '$',
+    EUR: '€',
+    GBP: '£',
+    XAF: 'XAF ',
+    CAD: 'CA$',
+  };
+
+  const symbol = currencySymbols[currency] || currency + ' ';
+  const symbolPosition = ['XAF'].includes(currency) ? 'suffix' : 'prefix';
+
+  const formatted = absAmount.toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(numericValue);
+  });
+
+  if (symbolPosition === 'prefix') {
+    return `${sign}${symbol}${formatted}`;
+  } else {
+    return `${sign}${formatted} ${symbol.trim()}`;
+  }
 };
 
 /**
- * Format numbers with thousand separators
+ * Format number with thousand separators
  */
-export const formatNumber = (value, locale = 'en-US') => {
-  if (value === null || value === undefined || isNaN(value)) {
+export const formatNumber = (num) => {
+  if (num === null || num === undefined || isNaN(num)) {
     return '0';
   }
-
-  const numericValue = typeof value === 'string' ? parseFloat(value) : value;
-  
-  return new Intl.NumberFormat(locale).format(numericValue);
+  return Math.round(num).toLocaleString('en-US');
 };
 
 /**
- * Format percentages
+ * Format date from YYMMDD to readable format
+ */
+export const formatDate = (dateStr, format = 'medium') => {
+  if (!dateStr || dateStr.length !== 6) {
+    return 'Invalid Date';
+  }
+
+  try {
+    const yy = dateStr.substring(0, 2);
+    const mm = dateStr.substring(2, 4);
+    const dd = dateStr.substring(4, 6);
+    const year = parseInt(`20${yy}`);
+    const month = parseInt(mm) - 1;
+    const day = parseInt(dd);
+    const date = new Date(year, month, day);
+    if (isNaN(date.getTime())) return 'Invalid Date';
+
+    const options = {
+      short: { month: 'short', day: 'numeric', year: '2-digit' },
+      medium: { month: 'short', day: 'numeric', year: 'numeric' },
+      long: { month: 'long', day: 'numeric', year: 'numeric' },
+    };
+
+    return date.toLocaleDateString('en-US', options[format] || options.medium);
+  } catch {
+    return 'Invalid Date';
+  }
+};
+
+/**
+ * Format date and time
+ */
+export const formatDateTime = (datetime) => {
+  if (!datetime) return '-';
+  const date = typeof datetime === 'string' ? new Date(datetime) : datetime;
+  if (isNaN(date.getTime())) return 'Invalid DateTime';
+
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+/**
+ * Format percentage
  */
 export const formatPercentage = (value, decimals = 2) => {
   if (value === null || value === undefined || isNaN(value)) {
-    return '0%';
+    return '0.00%';
   }
-
-  const numericValue = typeof value === 'string' ? parseFloat(value) : value;
-  return `${numericValue.toFixed(decimals)}%`;
+  return `${value.toFixed(decimals)}%`;
 };
 
 /**
- * Format dates from various formats
- */
-export const formatDate = (date, formatString = 'MMM dd, yyyy') => {
-  if (!date) return '';
-
-  try {
-    let dateObj;
-    
-    if (typeof date === 'string') {
-      // Handle YYMMDD format from HOT22 data
-      if (date.length === 6 && /^\d{6}$/.test(date)) {
-        const year = parseInt(date.substring(0, 2)) + 2000;
-        const month = parseInt(date.substring(2, 4)) - 1; // JS months are 0-indexed
-        const day = parseInt(date.substring(4, 6));
-        dateObj = new Date(year, month, day);
-      } else if (date.includes('T') || date.includes('-')) {
-        // ISO date string
-        dateObj = parseISO(date);
-      } else {
-        dateObj = new Date(date);
-      }
-    } else {
-      dateObj = date;
-    }
-
-    if (!isValid(dateObj)) {
-      return date; // Return original if can't parse
-    }
-
-    return format(dateObj, formatString);
-  } catch (error) {
-    console.warn('Date formatting error:', error);
-    return date;
-  }
-};
-
-/**
- * Format time from HHMM format
- */
-export const formatTime = (time) => {
-  if (!time || time.length !== 4) return '';
-  
-  const hours = time.substring(0, 2);
-  const minutes = time.substring(2, 4);
-  
-  return `${hours}:${minutes}`;
-};
-
-/**
- * Format passenger names
- */
-export const formatPassengerName = (name) => {
-  if (!name) return '';
-  
-  // Remove extra spaces and convert to proper case
-  return name
-    .trim()
-    .split(/\s+/)
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ');
-};
-
-/**
- * Format ticket numbers for display
- */
-export const formatTicketNumber = (ticketNumber) => {
-  if (!ticketNumber) return '';
-  
-  // Add spaces for readability: 123-4567890123
-  if (ticketNumber.length === 14) {
-    return `${ticketNumber.substring(0, 3)}-${ticketNumber.substring(3)}`;
-  }
-  
-  return ticketNumber;
-};
-
-/**
- * Format transaction numbers
- */
-export const formatTransactionNumber = (transactionNumber) => {
-  if (!transactionNumber) return '';
-  
-  // Format as TXN-123456
-  return `TXN-${transactionNumber}`;
-};
-
-/**
- * Format agent codes
+ * Format agent code
  */
 export const formatAgentCode = (agentCode) => {
-  if (!agentCode) return '';
-  
-  // Format as 12345678 -> 1234-5678
-  if (agentCode.length === 8) {
-    return `${agentCode.substring(0, 4)}-${agentCode.substring(4)}`;
-  }
-  
+  if (!agentCode) return 'N/A';
+  if (agentCode.length === 8)
+    return `${agentCode.slice(0, 4)}-${agentCode.slice(4)}`;
   return agentCode;
 };
 
 /**
- * Format file sizes
+ * Format file size
  */
 export const formatFileSize = (bytes) => {
   if (bytes === 0) return '0 Bytes';
-  
   const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 };
 
 /**
- * Format duration in milliseconds to human readable
+ * Format duration
  */
-export const formatDuration = (milliseconds) => {
-  if (!milliseconds) return '0s';
-  
-  const seconds = Math.floor(milliseconds / 1000);
+export const formatDuration = (ms) => {
+  if (!ms || ms < 0) return '0s';
+  const seconds = Math.floor(ms / 1000);
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
-  
-  if (hours > 0) {
-    return `${hours}h ${minutes % 60}m`;
-  } else if (minutes > 0) {
-    return `${minutes}m ${seconds % 60}s`;
-  } else {
-    return `${seconds}s`;
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) return `${days}d ${hours % 24}h`;
+  if (hours > 0) return `${hours}h ${minutes % 60}m`;
+  if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+  return `${seconds}s`;
+};
+
+/**
+ * Format ticket number
+ */
+export const formatTicketNumber = (ticketNumber) => {
+  if (!ticketNumber) return 'N/A';
+  if (ticketNumber.length === 13) {
+    return `${ticketNumber.slice(0, 3)}-${ticketNumber.slice(3)}`;
   }
+  return ticketNumber;
 };
 
 /**
- * Format route (origin-destination)
+ * Format transaction number
  */
-export const formatRoute = (origin, destination) => {
-  if (!origin || !destination) return '';
-  return `${origin} → ${destination}`;
+export const formatTransactionNumber = (trxNumber) => {
+  if (!trxNumber) return 'N/A';
+  const num = parseInt(trxNumber);
+  return num ? `TXN-${String(num).padStart(6, '0')}` : 'N/A';
 };
 
 /**
- * Format commission rate
- */
-export const formatCommissionRate = (rate) => {
-  if (rate === null || rate === undefined) return '';
-  
-  const numericRate = typeof rate === 'string' ? parseFloat(rate) : rate;
-  return `${numericRate.toFixed(2)}%`;
-};
-
-/**
- * Truncate text with ellipsis
+ * Truncate text
  */
 export const truncateText = (text, maxLength = 50) => {
   if (!text) return '';
-  
   if (text.length <= maxLength) return text;
-  
-  return text.substring(0, maxLength - 3) + '...';
+  return `${text.substring(0, maxLength)}...`;
 };
 
 /**
- * Format status badges
+ * Format CUTP (Currency Type)
+ */
+export const formatCUTP = (cutp) => {
+  if (!cutp) return 'N/A';
+  return cutp.replace(/\d+$/, '');
+};
+
+/**
+ * Format exchange rate
+ */
+export const formatExchangeRate = (rate, decimals = 4) => {
+  if (rate === null || rate === undefined || isNaN(rate)) {
+    return '1.0000';
+  }
+  return rate.toFixed(decimals);
+};
+
+/**
+ * Format compact number (K, M, B)
+ */
+export const formatCompactNumber = (num) => {
+  if (num === null || num === undefined || isNaN(num)) return '0';
+  const absNum = Math.abs(num);
+  const sign = num < 0 ? '-' : '';
+  if (absNum >= 1e9) return `${sign}${(absNum / 1e9).toFixed(1)}B`;
+  if (absNum >= 1e6) return `${sign}${(absNum / 1e6).toFixed(1)}M`;
+  if (absNum >= 1e3) return `${sign}${(absNum / 1e3).toFixed(1)}K`;
+  return `${sign}${absNum.toFixed(0)}`;
+};
+
+/**
+ * Format status text
  */
 export const formatStatus = (status) => {
-  if (!status) return '';
-  
-  return status
-    .toLowerCase()
-    .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-};
-
-/**
- * Format phone numbers
- */
-export const formatPhoneNumber = (phoneNumber) => {
-  if (!phoneNumber) return '';
-  
-  // Remove all non-digits
-  const cleaned = phoneNumber.replace(/\D/g, '');
-  
-  // Format as (123) 456-7890
-  if (cleaned.length === 10) {
-    return `(${cleaned.substring(0, 3)}) ${cleaned.substring(3, 6)}-${cleaned.substring(6)}`;
-  }
-  
-  return phoneNumber;
-};
-
-/**
- * Format relative time (time ago)
- */
-export const formatTimeAgo = (date) => {
-  if (!date) return '';
-  
-  const now = new Date();
-  const past = new Date(date);
-  const diffInSeconds = Math.floor((now - past) / 1000);
-  
-  if (diffInSeconds < 60) {
-    return 'Just now';
-  } else if (diffInSeconds < 3600) {
-    const minutes = Math.floor(diffInSeconds / 60);
-    return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-  } else if (diffInSeconds < 86400) {
-    const hours = Math.floor(diffInSeconds / 3600);
-    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-  } else if (diffInSeconds < 2592000) {
-    const days = Math.floor(diffInSeconds / 86400);
-    return `${days} day${days > 1 ? 's' : ''} ago`;
-  } else {
-    return formatDate(date);
-  }
-};
-
-// NEW UTILITY FUNCTIONS ADDED FOR ERROR LOGS
-
-/**
- * Enhanced relative time string for error logs
- */
-export const getRelativeTimeString = (date) => {
-  if (!date) return 'Unknown';
-  
-  const now = new Date();
-  const compareDate = new Date(date);
-  const diffTime = Math.abs(now - compareDate);
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  const diffHours = Math.ceil(diffTime / (1000 * 60 * 60));
-  const diffMinutes = Math.ceil(diffTime / (1000 * 60));
-  
-  if (isToday(date)) {
-    if (diffHours < 1) {
-      return `${diffMinutes}m ago`;
-    }
-    return `${diffHours}h ago`;
-  }
-  if (isYesterday(date)) return 'Yesterday';
-  if (diffDays <= 7) return `${diffDays}d ago`;
-  if (diffDays <= 30) return `${Math.ceil(diffDays / 7)}w ago`;
-  if (diffDays <= 365) return `${Math.ceil(diffDays / 30)}mo ago`;
-  
-  return `${Math.ceil(diffDays / 365)}y ago`;
-};
-
-/**
- * Check if date is today
- */
-export const isToday = (date) => {
-  const today = new Date();
-  const compareDate = new Date(date);
-  
-  return (
-    compareDate.getDate() === today.getDate() &&
-    compareDate.getMonth() === today.getMonth() &&
-    compareDate.getFullYear() === today.getFullYear()
-  );
-};
-
-/**
- * Check if date is yesterday
- */
-export const isYesterday = (date) => {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const compareDate = new Date(date);
-  
-  return (
-    compareDate.getDate() === yesterday.getDate() &&
-    compareDate.getMonth() === yesterday.getMonth() &&
-    compareDate.getFullYear() === yesterday.getFullYear()
-  );
-};
-
-/**
- * Get browser name from user agent string
- */
-export const getBrowserFromUserAgent = (userAgent) => {
-  if (!userAgent) return 'Unknown';
-  
-  if (userAgent.includes('Chrome')) return 'Chrome';
-  if (userAgent.includes('Firefox')) return 'Firefox';
-  if (userAgent.includes('Safari')) return 'Safari';
-  if (userAgent.includes('Edge')) return 'Edge';
-  if (userAgent.includes('Opera')) return 'Opera';
-  
-  return 'Other';
-};
-
-/**
- * Calculate error severity based on error count and total records
- */
-export const calculateErrorSeverity = (errorCount, totalRecords) => {
-  if (!errorCount || errorCount === 0) return 'none';
-  if (!totalRecords || totalRecords === 0) return 'unknown';
-  
-  const errorRate = (errorCount / totalRecords) * 100;
-  
-  if (errorRate > 50) return 'critical';
-  if (errorRate > 20) return 'high';
-  if (errorRate > 5) return 'medium';
-  return 'low';
-};
-
-/**
- * Get file type from file name
- */
-export const getFileTypeFromName = (fileName) => {
-  if (!fileName) return 'unknown';
-  
-  const extension = fileName.split('.').pop()?.toLowerCase();
-  
-  switch (extension) {
-    case 'txt':
-      return 'text';
-    case 'csv':
-      return 'csv';
-    case 'json':
-      return 'json';
-    case 'xml':
-      return 'xml';
-    default:
-      return 'unknown';
-  }
-};
-
-/**
- * Format record type code to human readable name
- */
-export const formatRecordType = (type) => {
-  const recordTypeMap = {
-    'BFH01': 'File Header',
-    'BCH02': 'Commission Header',
-    'BOH03': 'Office Header',
-    'BKT06': 'Ticket',
-    'BKS24': 'Sales Record',
-    'BKS30': 'Sales Record (Extended)',
-    'BKS39': 'Sales Record (Detailed)',
-    'BKS42': 'Booking Record',
-    'BKS45': 'Booking Record (Extended)',
-    'BKS46': 'Booking Record (Detailed)',
-    'BKI63': 'Itinerary',
-    'BAR64': 'Passenger Record',
-    'BAR65': 'Passenger (Extended)',
-    'BAR66': 'Passenger (Detailed)',
-    'BCC82': 'Commission',
-    'BMD75': 'Market Data',
-    'BMD76': 'Market Data (Extended)',
-    'BKF81': 'Fare Record',
-    'BKP84': 'Pricing Record',
-    'BOT93': 'Other Transaction',
-    'BOT94': 'Other Transaction (Extended)',
-    'BCT95': 'Credit Transaction',
-    'BFT99': 'File Trailer',
+  if (!status) return 'Unknown';
+  const statusMap = {
+    active: 'Active',
+    inactive: 'Inactive',
+    pending: 'Pending',
+    completed: 'Completed',
+    failed: 'Failed',
+    processing: 'Processing',
+    success: 'Success',
+    error: 'Error',
   };
-  
-  return recordTypeMap[type] || type;
+  return statusMap[status.toLowerCase()] || status;
 };
 
 /**
- * Format percent value
+ * Parse and format date/time helpers
  */
-export const formatPercent = (value, decimals = 1) => {
-  if (value == null) return '0%';
-  
-  return `${Number(value).toFixed(decimals)}%`;
+export const parseAPIDate = (dateStr) => {
+  if (!dateStr || dateStr.length !== 6) return null;
+  try {
+    const yy = dateStr.substring(0, 2);
+    const mm = dateStr.substring(2, 4);
+    const dd = dateStr.substring(4, 6);
+    const year = parseInt(`20${yy}`);
+    const month = parseInt(mm) - 1;
+    const day = parseInt(dd);
+    const date = new Date(year, month, day);
+    return isNaN(date.getTime()) ? null : date;
+  } catch {
+    return null;
+  }
+};
+
+export const formatDateToAPI = (date) => {
+  if (!date || !(date instanceof Date) || isNaN(date.getTime())) return null;
+  const yy = String(date.getFullYear()).slice(-2);
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yy}${mm}${dd}`;
 };
 
 /**
- * Export all formatters
+ * Format passenger name
  */
+export const formatPassengerName = (name) => {
+  if (!name) return 'Unknown Passenger';
+  if (name.includes('/')) {
+    const [last, first] = name.split('/');
+    return (
+      `${first?.trim() || ''} ${last?.trim() || ''}`.trim() ||
+      'Unknown Passenger'
+    );
+  }
+  return name;
+};
+
+/**
+ * Format time
+ */
+export const formatTime = (timeStr) => {
+  if (!timeStr || timeStr.length !== 4) return 'Invalid Time';
+  const hours = timeStr.substring(0, 2);
+  const minutes = timeStr.substring(2, 4);
+  return `${hours}:${minutes}`;
+};
+
+/**
+ * Relative time
+ */
+export const formatTimeAgo = (dateStr) => {
+  const date = parseAPIDate(dateStr);
+  if (!date) return 'Unknown date';
+  return getRelativeTime(date);
+};
+
+export const getRelativeTime = (date) => {
+  if (!date) return '';
+  const now = new Date();
+  const then = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(then.getTime())) return 'Invalid date';
+  const diffMs = now - then;
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffSec < 60) return 'Just now';
+  if (diffMin < 60) return `${diffMin} minute${diffMin !== 1 ? 's' : ''} ago`;
+  if (diffHour < 24) return `${diffHour} hour${diffHour !== 1 ? 's' : ''} ago`;
+  if (diffDay < 7) return `${diffDay} day${diffDay !== 1 ? 's' : ''} ago`;
+  return formatDate(formatDateToAPI(then));
+};
+
 export default {
+  parseEdifactAmount,
   formatCurrency,
   formatNumber,
-  formatPercentage,
   formatDate,
-  formatTime,
-  formatPassengerName,
-  formatTicketNumber,
-  formatTransactionNumber,
+  formatDateTime,
+  formatPercentage,
   formatAgentCode,
   formatFileSize,
   formatDuration,
-  formatRoute,
-  formatCommissionRate,
+  formatTicketNumber,
+  formatTransactionNumber,
   truncateText,
+  formatCUTP,
+  formatExchangeRate,
+  formatCompactNumber,
   formatStatus,
-  formatPhoneNumber,
+  parseAPIDate,
+  formatDateToAPI,
+  getRelativeTime,
+  formatPassengerName,
+  formatTime,
   formatTimeAgo,
-  // New additions
-  getRelativeTimeString,
-  isToday,
-  isYesterday,
-  getBrowserFromUserAgent,
-  calculateErrorSeverity,
-  getFileTypeFromName,
-  formatRecordType,
-  formatPercent,
 };

@@ -25,6 +25,9 @@ import {
   Alert,
   CircularProgress,
   useTheme,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from '@mui/material';
 import {
   ArrowBack as BackIcon,
@@ -32,11 +35,12 @@ import {
   Flight as FlightIcon,
   AttachMoney as MoneyIcon,
   Business as BusinessIcon,
-  DateRange as DateIcon,
+  CreditCard as CreditCardIcon,
   Receipt as ReceiptIcon,
   Print as PrintIcon,
   Share as ShareIcon,
-  Edit as EditIcon,
+  ExpandMore as ExpandMoreIcon,
+  LocalOffer as TagIcon,
 } from '@mui/icons-material';
 
 // Hooks
@@ -45,7 +49,13 @@ import { fetchTransactionDetails } from '../store/slices/transactionSlice';
 import { addNotification } from '../store/slices/uiSlice';
 
 // Utils
-import { formatCurrency, formatDate, formatTime, formatPassengerName, formatAgentCode, formatTicketNumber } from '../utils/formatters';
+import {
+  formatCurrency,
+  formatDate,
+  formatPassengerName,
+  formatAgentCode,
+  formatTicketNumber,
+} from '../utils/formatters';
 
 const TransactionDetails = () => {
   const theme = useTheme();
@@ -63,6 +73,35 @@ const TransactionDetails = () => {
     }
   }, [dispatch, transactionNumber]);
 
+  // Parse COBOL amount format: "0000001000{" or "0000012551D"
+  const parseAmount = (amountStr) => {
+    if (!amountStr) return 0;
+
+    // Remove special characters and convert
+    const cleanStr = amountStr.replace(/[{}\s]/g, '');
+
+    // Handle negative amounts (ending with letters like D, J, K, etc.)
+    const lastChar = cleanStr.slice(-1);
+    const isNegative = /[D-R}]/i.test(lastChar);
+
+    // Remove last character if it's a letter
+    const numericStr = /[A-Z]/i.test(lastChar)
+      ? cleanStr.slice(0, -1)
+      : cleanStr;
+
+    const num = parseFloat(numericStr);
+    const amount = isNegative ? -num : num;
+
+    // Divide by 100 to get actual amount (stored in cents)
+    return isNaN(amount) ? 0 : amount / 100;
+  };
+
+  // Get currency from CUTP field (remove trailing numbers)
+  const getCurrency = (cutp) => {
+    if (!cutp) return 'USD';
+    return cutp.replace(/\d+$/, '');
+  };
+
   const handleBack = () => {
     navigate(-1);
   };
@@ -73,13 +112,13 @@ const TransactionDetails = () => {
 
   const handleViewPassenger = () => {
     if (transaction?.passenger) {
-      navigate(`/passengers/${transaction.TRNN}`);
+      navigate(`/passengers/${transaction.sales?.TRNN}`);
     }
   };
 
   const handleViewOffice = () => {
-    if (transaction?.AGTN) {
-      navigate(`/offices/${transaction.AGTN}`);
+    if (transaction?.sales?.AGTN) {
+      navigate(`/offices/${transaction.sales.AGTN}`);
     }
   };
 
@@ -95,17 +134,26 @@ const TransactionDetails = () => {
       });
     } else {
       navigator.clipboard.writeText(window.location.href);
-      dispatch(addNotification({
-        type: 'success',
-        message: 'Link copied to clipboard',
-        autoHideDuration: 2000,
-      }));
+      dispatch(
+        addNotification({
+          type: 'success',
+          message: 'Link copied to clipboard',
+          autoHideDuration: 2000,
+        })
+      );
     }
   };
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: 400,
+        }}
+      >
         <CircularProgress />
       </Box>
     );
@@ -130,26 +178,73 @@ const TransactionDetails = () => {
         <Button startIcon={<BackIcon />} onClick={handleBack} sx={{ mb: 2 }}>
           Back to Transactions
         </Button>
-        <Alert severity="warning">
-          Transaction not found
-        </Alert>
+        <Alert severity="warning">Transaction not found</Alert>
       </Box>
     );
   }
 
   const getTransactionTypeColor = (type) => {
     switch (type) {
-      case 'RFND': return 'error';
-      case 'EXCH': return 'warning';
-      case 'VOID': return 'secondary';
-      default: return 'primary';
+      case 'RFND':
+      case 'EMDR':
+        return 'error';
+      case 'EXCH':
+        return 'warning';
+      case 'VOID':
+        return 'secondary';
+      case 'EMDS':
+        return 'info';
+      default:
+        return 'primary';
     }
   };
+
+  const getTransactionTypeLabel = (type) => {
+    switch (type) {
+      case 'RFND':
+        return 'Refund';
+      case 'EXCH':
+        return 'Exchange';
+      case 'VOID':
+        return 'Void';
+      case 'EMDS':
+        return 'EMD Sale';
+      case 'EMDR':
+        return 'EMD Refund';
+      default:
+        return 'Standard';
+    }
+  };
+
+  // Extract financial data
+  const totalAmount = parseAmount(transaction.financial?.TDAM);
+  const netFare = parseAmount(transaction.financial?.NTFA);
+  const tax1 = parseAmount(transaction.financial?.TMFA1);
+  const tax2 = parseAmount(transaction.financial?.TMFA2);
+  const tax3 = parseAmount(transaction.financial?.TMFA3);
+  const totalTax = tax1 + tax2 + tax3;
+  const currency = getCurrency(transaction.financial?.CUTP);
+
+  // Extract commission data
+  const commissionAmount = parseAmount(transaction.commission?.COAM);
+  const commissionRate = transaction.commission?.CORT
+    ? parseFloat(transaction.commission.CORT) / 100
+    : 0;
+  const effectiveCommission = parseAmount(transaction.commission?.EFCO);
 
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 3,
+          flexWrap: 'wrap',
+          gap: 2,
+        }}
+      >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <IconButton onClick={handleBack}>
             <BackIcon />
@@ -158,12 +253,16 @@ const TransactionDetails = () => {
             <Typography variant="h4" component="h1" fontWeight="bold">
               Transaction Details
             </Typography>
-            <Typography variant="h6" color="text.secondary">
+            <Typography
+              variant="h6"
+              color="text.secondary"
+              fontFamily="monospace"
+            >
               TXN-{transactionNumber}
             </Typography>
           </Box>
         </Box>
-        
+
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Tooltip title="Print">
             <IconButton onClick={handlePrint}>
@@ -175,9 +274,6 @@ const TransactionDetails = () => {
               <ShareIcon />
             </IconButton>
           </Tooltip>
-          <Button variant="outlined" startIcon={<EditIcon />}>
-            Edit
-          </Button>
         </Box>
       </Box>
 
@@ -186,14 +282,20 @@ const TransactionDetails = () => {
         <Grid item xs={12} md={8}>
           <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  mb: 3,
+                }}
+              >
                 <Typography variant="h6" fontWeight={600}>
                   Transaction Overview
                 </Typography>
                 <Chip
-                  label={transaction.TRNC || 'STD'}
-                  color={getTransactionTypeColor(transaction.TRNC)}
-                  variant="outlined"
+                  label={getTransactionTypeLabel(transaction.sales?.TRNC)}
+                  color={getTransactionTypeColor(transaction.sales?.TRNC)}
                 />
               </Box>
 
@@ -204,7 +306,7 @@ const TransactionDetails = () => {
                       Transaction Number
                     </Typography>
                     <Typography variant="h6" fontFamily="monospace">
-                      TXN-{transaction.TRNN}
+                      {transaction.sales?.TRNN}
                     </Typography>
                   </Box>
                 </Grid>
@@ -215,7 +317,7 @@ const TransactionDetails = () => {
                       Issue Date
                     </Typography>
                     <Typography variant="h6">
-                      {formatDate(transaction.DAIS)}
+                      {formatDate(transaction.sales?.DAIS)}
                     </Typography>
                   </Box>
                 </Grid>
@@ -226,7 +328,7 @@ const TransactionDetails = () => {
                       Ticket Number
                     </Typography>
                     <Typography variant="h6" fontFamily="monospace">
-                      {formatTicketNumber(transaction.TDNR)}
+                      {formatTicketNumber(transaction.sales?.TDNR)}
                     </Typography>
                   </Box>
                 </Grid>
@@ -237,10 +339,34 @@ const TransactionDetails = () => {
                       Agent Code
                     </Typography>
                     <Typography variant="h6" fontFamily="monospace">
-                      {formatAgentCode(transaction.AGTN)}
+                      {formatAgentCode(transaction.sales?.AGTN)}
                     </Typography>
                   </Box>
                 </Grid>
+
+                {transaction.sales?.PNRR && (
+                  <Grid item xs={12} sm={6}>
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        PNR Locator
+                      </Typography>
+                      <Typography variant="body1" fontFamily="monospace">
+                        {transaction.sales.PNRR}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                )}
+
+                {transaction.sales?.RFIC && (
+                  <Grid item xs={12} sm={6}>
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        RFIC Code
+                      </Typography>
+                      <Chip label={transaction.sales.RFIC} size="small" />
+                    </Box>
+                  </Grid>
+                )}
               </Grid>
 
               <Divider sx={{ my: 3 }} />
@@ -250,81 +376,153 @@ const TransactionDetails = () => {
                 Financial Details
               </Typography>
 
-              <Grid container spacing={3}>
+              <Grid container spacing={2} sx={{ mb: 3 }}>
                 <Grid item xs={12} sm={4}>
-                  <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'success.light', borderRadius: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
+                  <Box
+                    sx={{
+                      textAlign: 'center',
+                      p: 2,
+                      bgcolor: 'primary.light',
+                      borderRadius: 2,
+                    }}
+                  >
+                    <Typography
+                      variant="body2"
+                      color="primary.contrastText"
+                      sx={{ opacity: 0.8 }}
+                    >
                       Total Amount
                     </Typography>
-                    <Typography variant="h5" fontWeight="bold" color="success.dark">
-                      {formatCurrency(transaction.financial?.TDAM)}
+                    <Typography
+                      variant="h5"
+                      fontWeight="bold"
+                      color="primary.contrastText"
+                    >
+                      {formatCurrency(totalAmount, currency)}
                     </Typography>
                   </Box>
                 </Grid>
 
                 <Grid item xs={12} sm={4}>
-                  <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'info.light', borderRadius: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      Base Fare
+                  <Box
+                    sx={{
+                      textAlign: 'center',
+                      p: 2,
+                      bgcolor: 'success.light',
+                      borderRadius: 2,
+                    }}
+                  >
+                    <Typography
+                      variant="body2"
+                      color="success.contrastText"
+                      sx={{ opacity: 0.8 }}
+                    >
+                      Net Fare
                     </Typography>
-                    <Typography variant="h5" fontWeight="bold" color="info.dark">
-                      {formatCurrency(transaction.financial?.BFAM)}
+                    <Typography
+                      variant="h5"
+                      fontWeight="bold"
+                      color="success.contrastText"
+                    >
+                      {formatCurrency(netFare, currency)}
                     </Typography>
                   </Box>
                 </Grid>
 
                 <Grid item xs={12} sm={4}>
-                  <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'warning.light', borderRadius: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      Tax Amount
+                  <Box
+                    sx={{
+                      textAlign: 'center',
+                      p: 2,
+                      bgcolor: 'warning.light',
+                      borderRadius: 2,
+                    }}
+                  >
+                    <Typography
+                      variant="body2"
+                      color="warning.contrastText"
+                      sx={{ opacity: 0.8 }}
+                    >
+                      Total Tax
                     </Typography>
-                    <Typography variant="h5" fontWeight="bold" color="warning.dark">
-                      {formatCurrency(transaction.financial?.TXAM)}
+                    <Typography
+                      variant="h5"
+                      fontWeight="bold"
+                      color="warning.contrastText"
+                    >
+                      {formatCurrency(totalTax, currency)}
                     </Typography>
                   </Box>
                 </Grid>
               </Grid>
 
-              {transaction.financial && (
-                <TableContainer component={Paper} variant="outlined" sx={{ mt: 3 }}>
-                  <Table size="small">
-                    <TableHead>
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>
+                        <strong>Description</strong>
+                      </TableCell>
+                      <TableCell align="right">
+                        <strong>Amount</strong>
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>Net Fare (NTFA)</TableCell>
+                      <TableCell align="right">
+                        {formatCurrency(netFare, currency)}
+                      </TableCell>
+                    </TableRow>
+                    {tax1 !== 0 && (
                       <TableRow>
-                        <TableCell>Description</TableCell>
-                        <TableCell align="right">Amount</TableCell>
-                        <TableCell>Currency</TableCell>
+                        <TableCell>
+                          Tax 1 ({transaction.financial?.TMFT1 || 'N/A'})
+                        </TableCell>
+                        <TableCell align="right">
+                          {formatCurrency(tax1, currency)}
+                        </TableCell>
                       </TableRow>
-                    </TableHead>
-                    <TableBody>
+                    )}
+                    {tax2 !== 0 && (
                       <TableRow>
-                        <TableCell>Base Fare</TableCell>
-                        <TableCell align="right">{formatCurrency(transaction.financial.BFAM)}</TableCell>
-                        <TableCell>{transaction.financial.CUTP || 'USD'}</TableCell>
+                        <TableCell>
+                          Tax 2 ({transaction.financial?.TMFT2 || 'N/A'})
+                        </TableCell>
+                        <TableCell align="right">
+                          {formatCurrency(tax2, currency)}
+                        </TableCell>
                       </TableRow>
+                    )}
+                    {tax3 !== 0 && (
                       <TableRow>
-                        <TableCell>Tax Amount</TableCell>
-                        <TableCell align="right">{formatCurrency(transaction.financial.TXAM)}</TableCell>
-                        <TableCell>{transaction.financial.CUTP || 'USD'}</TableCell>
+                        <TableCell>
+                          Tax 3 ({transaction.financial?.TMFT3 || 'N/A'})
+                        </TableCell>
+                        <TableCell align="right">
+                          {formatCurrency(tax3, currency)}
+                        </TableCell>
                       </TableRow>
-                      <TableRow>
-                        <TableCell>Commission</TableCell>
-                        <TableCell align="right">{formatCurrency(transaction.financial.COAM)}</TableCell>
-                        <TableCell>{transaction.financial.CUTP || 'USD'}</TableCell>
-                      </TableRow>
-                      <TableRow sx={{ '& td': { fontWeight: 'bold' } }}>
-                        <TableCell>Total Amount</TableCell>
-                        <TableCell align="right">{formatCurrency(transaction.financial.TDAM)}</TableCell>
-                        <TableCell>{transaction.financial.CUTP || 'USD'}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              )}
+                    )}
+                    <TableRow
+                      sx={{
+                        '& td': { fontWeight: 'bold', bgcolor: 'action.hover' },
+                      }}
+                    >
+                      <TableCell>Total Document Amount (TDAM)</TableCell>
+                      <TableCell align="right">
+                        {formatCurrency(totalAmount, currency)}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* Quick Actions */}
+        {/* Quick Actions & Status */}
         <Grid item xs={12} md={4}>
           <Card>
             <CardContent>
@@ -334,34 +532,48 @@ const TransactionDetails = () => {
 
               <List>
                 {transaction.passenger && (
-                  <ListItem button onClick={handleViewPassenger} sx={{ borderRadius: 1, mb: 1 }}>
+                  <ListItem
+                    button
+                    onClick={handleViewPassenger}
+                    sx={{ borderRadius: 1, mb: 1, bgcolor: 'action.hover' }}
+                  >
                     <ListItemIcon>
                       <PersonIcon color="primary" />
                     </ListItemIcon>
                     <ListItemText
                       primary="Passenger Details"
-                      secondary={formatPassengerName(transaction.passenger.PXNM)}
+                      secondary={formatPassengerName(
+                        transaction.passenger.PXNM
+                      )}
                     />
                   </ListItem>
                 )}
 
-                <ListItem button onClick={handleViewOffice} sx={{ borderRadius: 1, mb: 1 }}>
+                <ListItem
+                  button
+                  onClick={handleViewOffice}
+                  sx={{ borderRadius: 1, mb: 1, bgcolor: 'action.hover' }}
+                >
                   <ListItemIcon>
                     <BusinessIcon color="primary" />
                   </ListItemIcon>
                   <ListItemText
                     primary="Issuing Office"
-                    secondary={formatAgentCode(transaction.AGTN)}
+                    secondary={formatAgentCode(transaction.sales?.AGTN)}
                   />
                 </ListItem>
 
-                <ListItem button onClick={() => handleViewTicket(transaction.TDNR)} sx={{ borderRadius: 1, mb: 1 }}>
+                <ListItem
+                  button
+                  onClick={() => handleViewTicket(transaction.sales?.TDNR)}
+                  sx={{ borderRadius: 1, bgcolor: 'action.hover' }}
+                >
                   <ListItemIcon>
                     <ReceiptIcon color="primary" />
                   </ListItemIcon>
                   <ListItemText
                     primary="Ticket Details"
-                    secondary={formatTicketNumber(transaction.TDNR)}
+                    secondary={formatTicketNumber(transaction.sales?.TDNR)}
                   />
                 </ListItem>
               </List>
@@ -372,23 +584,70 @@ const TransactionDetails = () => {
                 Transaction Status
               </Typography>
               <Chip
-                label={transaction.TRNC === 'RFND' ? 'Refunded' : transaction.TRNC === 'VOID' ? 'Voided' : 'Active'}
-                color={getTransactionTypeColor(transaction.TRNC)}
+                label={getTransactionTypeLabel(transaction.sales?.TRNC)}
+                color={getTransactionTypeColor(transaction.sales?.TRNC)}
                 sx={{ mb: 2 }}
               />
 
-              {transaction.RMED && (
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Last Modified
-                  </Typography>
-                  <Typography variant="body2">
-                    {formatDate(transaction.RMED)}
-                  </Typography>
-                </Box>
-              )}
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Currency
+                </Typography>
+                <Typography variant="h6">{currency}</Typography>
+              </Box>
             </CardContent>
           </Card>
+
+          {/* Commission Card */}
+          {transaction.commission && (
+            <Card sx={{ mt: 2 }}>
+              <CardContent>
+                <Typography variant="h6" fontWeight={600} gutterBottom>
+                  Commission Details
+                </Typography>
+
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Commission Amount
+                  </Typography>
+                  <Typography
+                    variant="h5"
+                    color="success.main"
+                    fontWeight="bold"
+                  >
+                    {formatCurrency(
+                      commissionAmount,
+                      getCurrency(transaction.commission.CUTP)
+                    )}
+                  </Typography>
+                </Box>
+
+                <Divider sx={{ my: 2 }} />
+
+                <Grid container spacing={2}>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" color="text.secondary">
+                      Rate
+                    </Typography>
+                    <Typography variant="body1" fontWeight={500}>
+                      {commissionRate.toFixed(2)}%
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" color="text.secondary">
+                      Effective Commission
+                    </Typography>
+                    <Typography variant="body1" fontWeight={500}>
+                      {formatCurrency(
+                        effectiveCommission,
+                        getCurrency(transaction.commission.CUTP)
+                      )}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          )}
         </Grid>
 
         {/* Passenger Information */}
@@ -410,23 +669,31 @@ const TransactionDetails = () => {
                     </Typography>
                   </Grid>
 
-                  <Grid item xs={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Passenger Type
-                    </Typography>
-                    <Chip
-                      label={transaction.passenger.PXTP || 'ADT'}
-                      color={transaction.passenger.PXTP === 'CHD' ? 'warning' : 'default'}
-                      size="small"
-                    />
-                  </Grid>
+                  {transaction.passenger.PXTP && (
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        Passenger Type
+                      </Typography>
+                      <Chip
+                        label={transaction.passenger.PXTP || 'ADT'}
+                        color={
+                          transaction.passenger.PXTP === 'CHD'
+                            ? 'warning'
+                            : transaction.passenger.PXTP === 'INF'
+                            ? 'info'
+                            : 'default'
+                        }
+                        size="small"
+                      />
+                    </Grid>
+                  )}
 
                   <Grid item xs={6}>
                     <Typography variant="body2" color="text.secondary">
-                      Transaction Number
+                      Document Number
                     </Typography>
                     <Typography variant="body2" fontFamily="monospace">
-                      {transaction.passenger.TRNN}
+                      {transaction.passenger.TDNR}
                     </Typography>
                   </Grid>
                 </Grid>
@@ -441,33 +708,89 @@ const TransactionDetails = () => {
             <Card>
               <CardContent>
                 <Typography variant="h6" fontWeight={600} gutterBottom>
-                  Itinerary
+                  Itinerary ({transaction.itinerary.length} segment
+                  {transaction.itinerary.length > 1 ? 's' : ''})
                 </Typography>
 
                 <List sx={{ p: 0 }}>
                   {transaction.itinerary.map((segment, index) => (
-                    <ListItem key={index} sx={{ px: 0, py: 1 }}>
+                    <ListItem
+                      key={index}
+                      sx={{
+                        px: 0,
+                        py: 2,
+                        borderBottom:
+                          index < transaction.itinerary.length - 1 ? 1 : 0,
+                        borderColor: 'divider',
+                      }}
+                    >
                       <ListItemIcon>
-                        <FlightIcon color="primary" />
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 40,
+                            height: 40,
+                            borderRadius: '50%',
+                            bgcolor: 'primary.light',
+                          }}
+                        >
+                          <FlightIcon color="primary" />
+                        </Box>
                       </ListItemIcon>
                       <ListItemText
                         primary={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="body2" fontWeight={500}>
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
+                              mb: 0.5,
+                            }}
+                          >
+                            <Typography variant="body1" fontWeight={600}>
                               {segment.ORAC} → {segment.DSTC}
                             </Typography>
-                            <Chip label={segment.FLTN || 'Flight'} size="small" variant="outlined" />
+                            <Chip
+                              label={`${segment.CARR} ${segment.FTNR}`}
+                              size="small"
+                              variant="outlined"
+                            />
+                            <Chip
+                              label={segment.FBST}
+                              size="small"
+                              color="success"
+                            />
                           </Box>
                         }
                         secondary={
                           <Box>
-                            <Typography variant="caption" color="text.secondary">
-                              Departure: {formatDate(segment.DEDT)} {formatTime(segment.DETM)}
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              display="block"
+                            >
+                              Segment: {segment.SEGI} • Class: {segment.RBKD} •
+                              Baggage: {segment.FBAL}
                             </Typography>
-                            <br />
-                            <Typography variant="caption" color="text.secondary">
-                              Arrival: {formatDate(segment.ARDT)} {formatTime(segment.ARTM)}
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              display="block"
+                            >
+                              Departure: {formatDate(segment.FTDA)} at{' '}
+                              {segment.FTDT}
                             </Typography>
+                            {segment.NADA && (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                display="block"
+                              >
+                                Not After: {segment.NADA}
+                              </Typography>
+                            )}
                           </Box>
                         }
                       />
@@ -479,69 +802,198 @@ const TransactionDetails = () => {
           </Grid>
         )}
 
-        {/* Additional Details */}
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
-                Additional Details
-              </Typography>
+        {/* Payment Information */}
+        {transaction.payment && transaction.payment.length > 0 && (
+          <Grid item xs={12}>
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <CreditCardIcon sx={{ mr: 1 }} />
+                <Typography variant="h6" fontWeight={600}>
+                  Payment Information ({transaction.payment.length} payment
+                  {transaction.payment.length > 1 ? 's' : ''})
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>
+                          <strong>Type</strong>
+                        </TableCell>
+                        <TableCell>
+                          <strong>Amount</strong>
+                        </TableCell>
+                        <TableCell>
+                          <strong>Card/Details</strong>
+                        </TableCell>
+                        <TableCell>
+                          <strong>Approval</strong>
+                        </TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {transaction.payment.map((payment, index) => (
+                        <TableRow key={index}>
+                          <TableCell>
+                            <Chip
+                              label={payment.FPTP}
+                              size="small"
+                              color="primary"
+                              variant="outlined"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            {formatCurrency(
+                              parseAmount(payment.FPAM),
+                              getCurrency(payment.CUTP)
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontFamily="monospace">
+                              {payment.FPAC || 'N/A'}
+                            </Typography>
+                            {payment.EXDA && (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                Exp: {payment.EXDA}
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontFamily="monospace">
+                              {payment.APLC || 'N/A'}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </AccordionDetails>
+            </Accordion>
+          </Grid>
+        )}
 
-              <Grid container spacing={3}>
-                <Grid item xs={12} sm={6} md={3}>
-                  <Typography variant="body2" color="text.secondary">
-                    Form of Payment
-                  </Typography>
-                  <Typography variant="body2">
-                    {transaction.financial?.FOPD || 'N/A'}
-                  </Typography>
+        {/* EMD Details */}
+        {transaction.emdDetails && transaction.emdDetails.length > 0 && (
+          <Grid item xs={12}>
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <TagIcon sx={{ mr: 1 }} />
+                <Typography variant="h6" fontWeight={600}>
+                  EMD Details ({transaction.emdDetails.length} EMD
+                  {transaction.emdDetails.length > 1 ? 's' : ''})
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Grid container spacing={2}>
+                  {transaction.emdDetails.map((emd, index) => (
+                    <Grid item xs={12} md={6} key={index}>
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Typography variant="subtitle2" gutterBottom>
+                            EMD #{emd.EMCP}
+                          </Typography>
+                          <Grid container spacing={2}>
+                            <Grid item xs={6}>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                Value
+                              </Typography>
+                              <Typography variant="body2" fontWeight={600}>
+                                {formatCurrency(
+                                  parseAmount(emd.EMCV),
+                                  getCurrency(emd.CUTP)
+                                )}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={6}>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                Related Ticket
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                fontFamily="monospace"
+                              >
+                                {formatTicketNumber(emd.EMRT)}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={6}>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                Service Code
+                              </Typography>
+                              <Typography variant="body2">
+                                {emd.EMSC}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={6}>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                Operating Carrier
+                              </Typography>
+                              <Typography variant="body2">
+                                {emd.EMOC}
+                              </Typography>
+                            </Grid>
+                            {transaction.emdRemarks &&
+                              transaction.emdRemarks[index] && (
+                                <Grid item xs={12}>
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                  >
+                                    Remark
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    {transaction.emdRemarks[index].EMRM}
+                                  </Typography>
+                                </Grid>
+                              )}
+                          </Grid>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
                 </Grid>
+              </AccordionDetails>
+            </Accordion>
+          </Grid>
+        )}
 
-                <Grid item xs={12} sm={6} md={3}>
-                  <Typography variant="body2" color="text.secondary">
-                    Commission Rate
+        {/* Fare Calculation */}
+        {transaction.fareCalculation && (
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" fontWeight={600} gutterBottom>
+                  Fare Calculation
+                </Typography>
+                <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
+                  <Typography
+                    variant="body2"
+                    fontFamily="monospace"
+                    sx={{ whiteSpace: 'pre-wrap' }}
+                  >
+                    {transaction.fareCalculation.FRCA}
                   </Typography>
-                  <Typography variant="body2">
-                    {transaction.financial?.CORT ? `${transaction.financial.CORT}%` : 'N/A'}
-                  </Typography>
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={3}>
-                  <Typography variant="body2" color="text.secondary">
-                    Tour Code
-                  </Typography>
-                  <Typography variant="body2">
-                    {transaction.TOCD || 'N/A'}
-                  </Typography>
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={3}>
-                  <Typography variant="body2" color="text.secondary">
-                    PNR
-                  </Typography>
-                  <Typography variant="body2" fontFamily="monospace">
-                    {transaction.RLOC || 'N/A'}
-                  </Typography>
-                </Grid>
-              </Grid>
-
-              {transaction.remarks && transaction.remarks.length > 0 && (
-                <Box sx={{ mt: 3 }}>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Remarks
-                  </Typography>
-                  <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
-                    {transaction.remarks.map((remark, index) => (
-                      <Typography key={index} variant="body2" sx={{ mb: 1 }}>
-                        • {remark}
-                      </Typography>
-                    ))}
-                  </Paper>
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
+                </Paper>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
       </Grid>
     </Box>
   );

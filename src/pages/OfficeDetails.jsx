@@ -19,6 +19,13 @@ import {
   useTheme,
   LinearProgress,
   Avatar,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
 } from '@mui/material';
 import {
   ArrowBack as BackIcon,
@@ -27,9 +34,9 @@ import {
   AttachMoney as MoneyIcon,
   People as PeopleIcon,
   LocationOn as LocationIcon,
-  Phone as PhoneIcon,
-  Email as EmailIcon,
+  ConfirmationNumber as TicketIcon,
   Assessment as AssessmentIcon,
+  CalendarToday as CalendarIcon,
 } from '@mui/icons-material';
 import {
   LineChart,
@@ -52,7 +59,12 @@ import MetricCard from '../components/dashboard/MetricCard';
 import ChartCard from '../components/dashboard/ChartCard';
 
 // Utils
-import { formatCurrency, formatNumber, formatDate, formatAgentCode } from '../utils/formatters';
+import {
+  formatCurrency,
+  formatNumber,
+  formatDate,
+  formatAgentCode,
+} from '../utils/formatters';
 
 const OfficeDetails = () => {
   const theme = useTheme();
@@ -82,28 +94,68 @@ const OfficeDetails = () => {
     navigate(`/passengers?agentCode=${agentCode}`);
   };
 
-  // Sample data for charts (replace with real data from API)
-  const performanceData = [
-    { month: 'Jan', transactions: 120, revenue: 18000 },
-    { month: 'Feb', transactions: 135, revenue: 21000 },
-    { month: 'Mar', transactions: 128, revenue: 19500 },
-    { month: 'Apr', transactions: 160, revenue: 24000 },
-    { month: 'May', transactions: 175, revenue: 26500 },
-    { month: 'Jun', transactions: 165, revenue: 25000 },
-  ];
+  // Transform transaction history for chart
+  const getTransactionChartData = () => {
+    if (!office?.transactionHistory) return [];
 
-  const monthlyRevenue = [
-    { month: 'Jan', revenue: 18000 },
-    { month: 'Feb', revenue: 21000 },
-    { month: 'Mar', revenue: 19500 },
-    { month: 'Apr', revenue: 24000 },
-    { month: 'May', revenue: 26500 },
-    { month: 'Jun', revenue: 25000 },
-  ];
+    return office.transactionHistory
+      .map((item) => ({
+        date: formatDate(item._id),
+        transactions: item.transactionCount,
+        tickets: item.uniqueTickets?.length || 0,
+      }))
+      .reverse(); // Reverse to show chronological order
+  };
+
+  // Calculate totals from transaction history
+  const getTotalTransactions = () => {
+    if (!office?.transactionHistory) return 0;
+    return office.transactionHistory.reduce(
+      (sum, item) => sum + item.transactionCount,
+      0
+    );
+  };
+
+  const getTotalTickets = () => {
+    if (!office?.transactionHistory) return 0;
+    return office.transactionHistory.reduce(
+      (sum, item) => sum + (item.uniqueTickets?.length || 0),
+      0
+    );
+  };
+
+  // Parse GROS (gross amount) from officeTotals
+  const parseAmount = (amountStr) => {
+    if (!amountStr) return 0;
+    // Remove special characters and convert to number
+    const cleanStr = amountStr.replace(/[{}\s]/g, '');
+    const num = parseFloat(cleanStr);
+    return isNaN(num) ? 0 : num / 100; // Divide by 100 as amounts are in cents
+  };
+
+  const getGrossAmount = () => {
+    return parseAmount(office?.officeTotals?.GROS);
+  };
+
+  const getCommissionAmount = () => {
+    return parseAmount(office?.officeTotals?.TCOM);
+  };
+
+  const getAveragePerTransaction = () => {
+    const total = getTotalTransactions();
+    return total > 0 ? getGrossAmount() / total : 0;
+  };
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: 400,
+        }}
+      >
         <CircularProgress />
       </Box>
     );
@@ -115,9 +167,7 @@ const OfficeDetails = () => {
         <Button startIcon={<BackIcon />} onClick={handleBack} sx={{ mb: 2 }}>
           Back to Offices
         </Button>
-        <Alert severity="error">
-          Error loading office details: {error}
-        </Alert>
+        <Alert severity="error">Error loading office details: {error}</Alert>
       </Box>
     );
   }
@@ -128,19 +178,28 @@ const OfficeDetails = () => {
         <Button startIcon={<BackIcon />} onClick={handleBack} sx={{ mb: 2 }}>
           Back to Offices
         </Button>
-        <Alert severity="warning">
-          Office not found
-        </Alert>
+        <Alert severity="warning">Office not found</Alert>
       </Box>
     );
   }
 
-  const performanceScore = 85; // Calculate based on office metrics
+  const totalTransactions = getTotalTransactions();
+  const totalTickets = getTotalTickets();
+  const grossAmount = getGrossAmount();
+  const performanceScore =
+    totalTransactions > 0 ? Math.min(100, totalTransactions / 10) : 0; // Simple calculation
 
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 3,
+        }}
+      >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <IconButton onClick={handleBack}>
             <BackIcon />
@@ -149,12 +208,16 @@ const OfficeDetails = () => {
             <Typography variant="h4" component="h1" fontWeight="bold">
               Office Details
             </Typography>
-            <Typography variant="h6" color="text.secondary" fontFamily="monospace">
+            <Typography
+              variant="h6"
+              color="text.secondary"
+              fontFamily="monospace"
+            >
               {formatAgentCode(agentCode)}
             </Typography>
           </Box>
         </Box>
-        
+
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Button variant="outlined" onClick={handleViewTransactions}>
             View Transactions
@@ -183,17 +246,26 @@ const OfficeDetails = () => {
                 </Avatar>
                 <Box sx={{ flexGrow: 1 }}>
                   <Typography variant="h5" fontWeight={600}>
-                    Agent Code: {formatAgentCode(office.AGTN)}
+                    Agent Code:{' '}
+                    {formatAgentCode(office.officeInfo?.AGTN || agentCode)}
                   </Typography>
                   <Typography variant="h6" color="text.secondary">
-                    {office.stats?.officeTotals?.MLOC || 'Office Location'}
+                    {office.officeInfo?.MLOC ||
+                      office.officeTotals?.MLOC ||
+                      'Office Location'}
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
                     <Chip label="Active" color="success" size="small" />
-                    <Chip 
-                      label={`Performance: ${performanceScore}%`} 
-                      color={performanceScore > 80 ? 'success' : performanceScore > 60 ? 'warning' : 'error'}
-                      size="small" 
+                    <Chip
+                      label={`Performance: ${performanceScore.toFixed(0)}%`}
+                      color={
+                        performanceScore > 80
+                          ? 'success'
+                          : performanceScore > 60
+                          ? 'warning'
+                          : 'error'
+                      }
+                      size="small"
                     />
                   </Box>
                 </Box>
@@ -211,7 +283,9 @@ const OfficeDetails = () => {
                         Location
                       </Typography>
                       <Typography variant="body1">
-                        {office.stats?.officeTotals?.MLOC || 'Not specified'}
+                        {office.officeInfo?.MLOC ||
+                          office.officeTotals?.MLOC ||
+                          'Not specified'}
                       </Typography>
                     </Box>
                   </Box>
@@ -225,7 +299,7 @@ const OfficeDetails = () => {
                         Agent Code
                       </Typography>
                       <Typography variant="body1" fontFamily="monospace">
-                        {formatAgentCode(office.AGTN)}
+                        {formatAgentCode(office.officeInfo?.AGTN || agentCode)}
                       </Typography>
                     </Box>
                   </Box>
@@ -233,13 +307,31 @@ const OfficeDetails = () => {
 
                 <Grid item xs={12} sm={6}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <EmailIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                    <MoneyIcon sx={{ mr: 1, color: 'text.secondary' }} />
                     <Box>
                       <Typography variant="body2" color="text.secondary">
                         Currency
                       </Typography>
                       <Typography variant="body1">
-                        {office.CUTP || 'USD'}
+                        {office.officeInfo?.CUTP?.replace(/\d+$/, '') ||
+                          office.officeTotals?.CUTP?.replace(/\d+$/, '') ||
+                          'USD'}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <CalendarIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Last Activity
+                      </Typography>
+                      <Typography variant="body1">
+                        {formatDate(
+                          office.officeInfo?.RMED || office.officeTotals?.RMED
+                        )}
                       </Typography>
                     </Box>
                   </Box>
@@ -250,10 +342,24 @@ const OfficeDetails = () => {
                     <AssessmentIcon sx={{ mr: 1, color: 'text.secondary' }} />
                     <Box>
                       <Typography variant="body2" color="text.secondary">
-                        Last Activity
+                        Message Type
                       </Typography>
                       <Typography variant="body1">
-                        {formatDate(office.RMED)}
+                        {office.officeInfo?.SMSG || 'N/A'}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <TrendingUpIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Transaction Type
+                      </Typography>
+                      <Typography variant="body1">
+                        {office.officeTotals?.TRNC || 'Standard'}
                       </Typography>
                     </Box>
                   </Box>
@@ -274,14 +380,22 @@ const OfficeDetails = () => {
                     backgroundColor: theme.palette.grey[200],
                     '& .MuiLinearProgress-bar': {
                       borderRadius: 4,
-                      backgroundColor: performanceScore > 80 ? theme.palette.success.main :
-                                     performanceScore > 60 ? theme.palette.warning.main :
-                                     theme.palette.error.main,
+                      backgroundColor:
+                        performanceScore > 80
+                          ? theme.palette.success.main
+                          : performanceScore > 60
+                          ? theme.palette.warning.main
+                          : theme.palette.error.main,
                     },
                   }}
                 />
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  {performanceScore}% - Based on transaction volume, revenue, and efficiency
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mt: 0.5 }}
+                >
+                  {performanceScore.toFixed(0)}% - Based on transaction volume
+                  and activity
                 </Typography>
               </Box>
             </CardContent>
@@ -294,15 +408,23 @@ const OfficeDetails = () => {
             <Grid item xs={12}>
               <MetricCard
                 title="Total Transactions"
-                value={formatNumber(office.stats?.transactionCount || 0)}
+                value={formatNumber(totalTransactions)}
                 icon={PeopleIcon}
                 color="primary"
               />
             </Grid>
             <Grid item xs={12}>
               <MetricCard
-                title="Total Revenue"
-                value={formatCurrency(office.stats?.totalRevenue || 0)}
+                title="Unique Tickets"
+                value={formatNumber(totalTickets)}
+                icon={TicketIcon}
+                color="secondary"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <MetricCard
+                title="Gross Amount"
+                value={formatCurrency(grossAmount)}
                 icon={MoneyIcon}
                 color="success"
               />
@@ -310,7 +432,7 @@ const OfficeDetails = () => {
             <Grid item xs={12}>
               <MetricCard
                 title="Avg Transaction"
-                value={formatCurrency((office.stats?.totalRevenue || 0) / (office.stats?.transactionCount || 1))}
+                value={formatCurrency(getAveragePerTransaction())}
                 icon={TrendingUpIcon}
                 color="info"
               />
@@ -318,67 +440,127 @@ const OfficeDetails = () => {
           </Grid>
         </Grid>
 
-        {/* Performance Charts */}
-        <Grid item xs={12} md={6}>
-          <ChartCard title="Monthly Performance" height={300}>
+        {/* Transaction History Chart */}
+        <Grid item xs={12}>
+          <ChartCard title="Transaction History" height={350}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={performanceData}>
+              <BarChart data={getTransactionChartData()}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
+                <XAxis dataKey="date" />
                 <YAxis />
                 <RechartsTooltip />
-                <Bar dataKey="transactions" fill={theme.palette.primary.main} />
+                <Bar
+                  dataKey="transactions"
+                  fill={theme.palette.primary.main}
+                  name="Transactions"
+                />
+                <Bar
+                  dataKey="tickets"
+                  fill={theme.palette.secondary.main}
+                  name="Tickets"
+                />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
         </Grid>
 
-        <Grid item xs={12} md={6}>
-          <ChartCard title="Revenue Trend" height={300}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={monthlyRevenue}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <RechartsTooltip formatter={(value) => [`$${value.toLocaleString()}`, 'Revenue']} />
-                <Line 
-                  type="monotone" 
-                  dataKey="revenue" 
-                  stroke={theme.palette.success.main}
-                  strokeWidth={3}
-                  dot={{ fill: theme.palette.success.main, strokeWidth: 2, r: 4 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </ChartCard>
-        </Grid>
-
-        {/* Recent Activity */}
+        {/* Transaction History Table */}
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
               <Typography variant="h6" fontWeight={600} gutterBottom>
-                Recent Activity
+                Transaction History by Date
+              </Typography>
+
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>
+                        <strong>Date</strong>
+                      </TableCell>
+                      <TableCell align="right">
+                        <strong>Transactions</strong>
+                      </TableCell>
+                      <TableCell align="right">
+                        <strong>Unique Tickets</strong>
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {office.transactionHistory?.map((item, index) => (
+                      <TableRow key={index}>
+                        <TableCell>{formatDate(item._id)}</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={formatNumber(item.transactionCount)}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          {formatNumber(item.uniqueTickets?.length || 0)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Office Totals Summary */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" fontWeight={600} gutterBottom>
+                Financial Summary
               </Typography>
 
               <List>
                 <ListItem sx={{ px: 0 }}>
                   <ListItemText
-                    primary="Processing transactions"
-                    secondary="Last activity 2 hours ago"
+                    primary="Gross Amount"
+                    secondary="Total gross revenue"
                   />
-                  <Chip label="Active" color="success" size="small" />
+                  <Typography variant="h6" color="success.main">
+                    {formatCurrency(getGrossAmount())}
+                  </Typography>
                 </ListItem>
+                <Divider />
+
                 <ListItem sx={{ px: 0 }}>
                   <ListItemText
-                    primary="Monthly report generated"
-                    secondary="3 days ago"
+                    primary="Commission"
+                    secondary="Total commission earned"
                   />
+                  <Typography variant="h6" color="primary.main">
+                    {formatCurrency(getCommissionAmount())}
+                  </Typography>
                 </ListItem>
+                <Divider />
+
                 <ListItem sx={{ px: 0 }}>
                   <ListItemText
-                    primary="Settings updated"
-                    secondary="1 week ago"
+                    primary="Average per Transaction"
+                    secondary="Based on total transactions"
+                  />
+                  <Typography variant="h6" color="info.main">
+                    {formatCurrency(getAveragePerTransaction())}
+                  </Typography>
+                </ListItem>
+                <Divider />
+
+                <ListItem sx={{ px: 0 }}>
+                  <ListItemText
+                    primary="Total Transactions"
+                    secondary="All processed transactions"
+                  />
+                  <Chip
+                    label={formatNumber(totalTransactions)}
+                    color="primary"
                   />
                 </ListItem>
               </List>
@@ -386,47 +568,77 @@ const OfficeDetails = () => {
           </Card>
         </Grid>
 
-        {/* Key Metrics */}
-        <Grid item xs={12} md={6}>
+        {/* Activity Summary */}
+        <Grid item xs={12}>
           <Card>
             <CardContent>
               <Typography variant="h6" fontWeight={600} gutterBottom>
-                Key Performance Indicators
+                Activity Summary
               </Typography>
 
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Transaction Volume</Typography>
-                    <Typography variant="body2" fontWeight={500}>95%</Typography>
+              <Grid container spacing={3}>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Box sx={{ textAlign: 'center', p: 2 }}>
+                    <Typography
+                      variant="h4"
+                      color="primary.main"
+                      fontWeight="bold"
+                    >
+                      {formatNumber(totalTransactions)}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Total Transactions
+                    </Typography>
                   </Box>
-                  <LinearProgress variant="determinate" value={95} color="success" />
-                </Box>
+                </Grid>
 
-                <Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Revenue Growth</Typography>
-                    <Typography variant="body2" fontWeight={500}>78%</Typography>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Box sx={{ textAlign: 'center', p: 2 }}>
+                    <Typography
+                      variant="h4"
+                      color="secondary.main"
+                      fontWeight="bold"
+                    >
+                      {formatNumber(totalTickets)}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Unique Tickets
+                    </Typography>
                   </Box>
-                  <LinearProgress variant="determinate" value={78} color="primary" />
-                </Box>
+                </Grid>
 
-                <Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Customer Satisfaction</Typography>
-                    <Typography variant="body2" fontWeight={500}>82%</Typography>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Box sx={{ textAlign: 'center', p: 2 }}>
+                    <Typography
+                      variant="h4"
+                      color="success.main"
+                      fontWeight="bold"
+                    >
+                      {office.transactionHistory?.length || 0}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Active Days
+                    </Typography>
                   </Box>
-                  <LinearProgress variant="determinate" value={82} color="warning" />
-                </Box>
+                </Grid>
 
-                <Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Efficiency Score</Typography>
-                    <Typography variant="body2" fontWeight={500}>88%</Typography>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Box sx={{ textAlign: 'center', p: 2 }}>
+                    <Typography
+                      variant="h4"
+                      color="warning.main"
+                      fontWeight="bold"
+                    >
+                      {totalTransactions > 0
+                        ? (totalTickets / totalTransactions).toFixed(1)
+                        : '0'}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Tickets per Transaction
+                    </Typography>
                   </Box>
-                  <LinearProgress variant="determinate" value={88} color="info" />
-                </Box>
-              </Box>
+                </Grid>
+              </Grid>
             </CardContent>
           </Card>
         </Grid>

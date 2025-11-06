@@ -40,10 +40,15 @@ import {
 // Hooks
 import { useAppSelector, useAppDispatch } from '../hooks/redux';
 import { fetchTicketDetails } from '../store/slices/transactionSlice';
-import { addNotification } from '../store/slices/uiSlice';
 
 // Utils
-import { formatCurrency, formatDate, formatTime, formatPassengerName, formatTicketNumber } from '../utils/formatters';
+import {
+  formatCurrency,
+  formatDate,
+  formatTime,
+  formatPassengerName,
+  formatTicketNumber,
+} from '../utils/formatters';
 
 const TicketDetails = () => {
   const theme = useTheme();
@@ -52,38 +57,32 @@ const TicketDetails = () => {
   const { ticketNumber } = useParams();
 
   const { ticketDetails } = useAppSelector((state) => state.transactions);
-  const { loading, data: ticket, error } = ticketDetails;
+  const { loading, data, error } = ticketDetails;
 
-  // Load ticket details on component mount
+  // Fetch ticket details
   React.useEffect(() => {
     if (ticketNumber) {
       dispatch(fetchTicketDetails(ticketNumber));
     }
   }, [dispatch, ticketNumber]);
 
-  const handleBack = () => {
-    navigate(-1);
-  };
-
-  const handleViewTransaction = () => {
-    if (ticket?.TRNN) {
-      navigate(`/transactions/${ticket.TRNN}`);
-    }
-  };
-
-  const handleViewPassenger = () => {
-    if (ticket?.passenger) {
-      navigate(`/passengers/${ticket.TRNN}`);
-    }
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
+  const handleBack = () => navigate(-1);
+  const handleViewTransaction = () =>
+    data?.sales?.TRNN && navigate(`/transactions/${data.sales.TRNN}`);
+  const handleViewPassenger = () =>
+    data?.passenger && navigate(`/passengers/${data.sales.TRNN}`);
+  const handlePrint = () => window.print();
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: 400,
+        }}
+      >
         <CircularProgress />
       </Box>
     );
@@ -95,30 +94,47 @@ const TicketDetails = () => {
         <Button startIcon={<BackIcon />} onClick={handleBack} sx={{ mb: 2 }}>
           Back
         </Button>
-        <Alert severity="error">
-          Error loading ticket details: {error}
-        </Alert>
+        <Alert severity="error">Error loading ticket details: {error}</Alert>
       </Box>
     );
   }
 
-  if (!ticket) {
+  if (!data) {
     return (
       <Box>
         <Button startIcon={<BackIcon />} onClick={handleBack} sx={{ mb: 2 }}>
           Back
         </Button>
-        <Alert severity="warning">
-          Ticket not found
-        </Alert>
+        <Alert severity="warning">Ticket not found</Alert>
       </Box>
     );
   }
 
+  const ticket = data.sales || {};
+  const passenger = data.passenger || {};
+  const itinerary = data.itinerary || [];
+  const payment = data.payment || [];
+  const financial = data.financial || {};
+  const office = data.officeInfo || {};
+
+  // Extract numeric value safely
+  const parseAmount = (val) => {
+    if (!val) return 0;
+    const match = String(val).match(/(\d+(\.\d+)?)/);
+    return match ? parseFloat(match[1]) : 0;
+  };
+
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 3,
+        }}
+      >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <IconButton onClick={handleBack}>
             <BackIcon />
@@ -127,12 +143,16 @@ const TicketDetails = () => {
             <Typography variant="h4" component="h1" fontWeight="bold">
               Ticket Details
             </Typography>
-            <Typography variant="h6" color="text.secondary" fontFamily="monospace">
-              {formatTicketNumber(ticketNumber)}
+            <Typography
+              variant="h6"
+              color="text.secondary"
+              fontFamily="monospace"
+            >
+              {formatTicketNumber(data.ticketNumber)}
             </Typography>
           </Box>
         </Box>
-        
+
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Tooltip title="Print Ticket">
             <IconButton onClick={handlePrint}>
@@ -152,67 +172,57 @@ const TicketDetails = () => {
         <Grid item xs={12} md={8}>
           <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  mb: 3,
+                }}
+              >
                 <Typography variant="h6" fontWeight={600}>
                   Ticket Information
                 </Typography>
-                <Chip
-                  label={ticket.status || 'Active'}
-                  color={ticket.status === 'Used' ? 'success' : 'primary'}
-                  variant="outlined"
-                />
+                <Chip label="Active" color="primary" variant="outlined" />
               </Box>
 
               <Grid container spacing={3}>
                 <Grid item xs={12} sm={6}>
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      Ticket Number
-                    </Typography>
-                    <Typography variant="h6" fontFamily="monospace">
-                      {formatTicketNumber(ticket.TDNR)}
-                    </Typography>
-                  </Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Ticket Number
+                  </Typography>
+                  <Typography variant="h6" fontFamily="monospace">
+                    {formatTicketNumber(ticket.TDNR)}
+                  </Typography>
                 </Grid>
-
                 <Grid item xs={12} sm={6}>
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      Issue Date
-                    </Typography>
-                    <Typography variant="h6">
-                      {formatDate(ticket.DAIS)}
-                    </Typography>
-                  </Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Issue Date
+                  </Typography>
+                  <Typography variant="h6">{ticket.DAIS}</Typography>
                 </Grid>
-
                 <Grid item xs={12} sm={6}>
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      Transaction Number
-                    </Typography>
-                    <Typography variant="h6" fontFamily="monospace">
-                      TXN-{ticket.TRNN}
-                    </Typography>
-                  </Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Transaction Number
+                  </Typography>
+                  <Typography variant="h6" fontFamily="monospace">
+                    TXN-{ticket.TRNN}
+                  </Typography>
                 </Grid>
-
                 <Grid item xs={12} sm={6}>
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      Issuing Agent
-                    </Typography>
-                    <Typography variant="h6" fontFamily="monospace">
-                      {ticket.AGTN}
-                    </Typography>
-                  </Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Issuing Agent
+                  </Typography>
+                  <Typography variant="h6" fontFamily="monospace">
+                    {ticket.AGTN || office.AGTN}
+                  </Typography>
                 </Grid>
               </Grid>
             </CardContent>
           </Card>
 
-          {/* Passenger Information */}
-          {ticket.passenger && (
+          {/* Passenger Info */}
+          {passenger && passenger.PXNM && (
             <Card sx={{ mt: 3 }}>
               <CardContent>
                 <Typography variant="h6" fontWeight={600} gutterBottom>
@@ -225,18 +235,14 @@ const TicketDetails = () => {
                       Passenger Name
                     </Typography>
                     <Typography variant="h5" fontWeight={500}>
-                      {formatPassengerName(ticket.passenger.PXNM)}
+                      {formatPassengerName(passenger.PXNM)}
                     </Typography>
                   </Grid>
-
                   <Grid item xs={12} sm={4}>
                     <Typography variant="body2" color="text.secondary">
                       Passenger Type
                     </Typography>
-                    <Chip
-                      label={ticket.passenger.PXTP || 'ADT'}
-                      color={ticket.passenger.PXTP === 'CHD' ? 'warning' : 'default'}
-                    />
+                    <Chip label={passenger.PXTP || 'ADT'} />
                   </Grid>
                 </Grid>
               </CardContent>
@@ -244,64 +250,95 @@ const TicketDetails = () => {
           )}
 
           {/* Flight Itinerary */}
-          {ticket.itinerary && ticket.itinerary.length > 0 && (
+          {Array.isArray(itinerary) && itinerary.length > 0 && (
             <Card sx={{ mt: 3 }}>
               <CardContent>
                 <Typography variant="h6" fontWeight={600} gutterBottom>
                   Flight Itinerary
                 </Typography>
 
-                {ticket.itinerary.map((segment, index) => (
-                  <Card key={index} variant="outlined" sx={{ mb: 2, bgcolor: 'grey.50' }}>
+                {itinerary.map((seg, i) => (
+                  <Card
+                    key={i}
+                    variant="outlined"
+                    sx={{ mb: 2, bgcolor: 'grey.50' }}
+                  >
                     <CardContent sx={{ p: 2 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          mb: 2,
+                        }}
+                      >
                         <Typography variant="subtitle1" fontWeight={600}>
-                          Segment {index + 1}
+                          Segment {seg.SEGI}
                         </Typography>
-                        <Chip 
-                          label={segment.FLTN || 'Flight'} 
-                          size="small" 
+                        <Chip
+                          label={`${seg.CARR}${seg.FTNR}`}
+                          size="small"
                           color="primary"
                         />
                       </Box>
 
                       <Grid container spacing={2}>
                         <Grid item xs={12} sm={6}>
-                          <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'white', borderRadius: 1 }}>
-                            <Typography variant="h4" fontWeight="bold" color="primary">
-                              {segment.ORAC}
+                          <Box
+                            sx={{
+                              textAlign: 'center',
+                              p: 2,
+                              bgcolor: 'white',
+                              borderRadius: 1,
+                            }}
+                          >
+                            <Typography
+                              variant="h4"
+                              fontWeight="bold"
+                              color="primary"
+                            >
+                              {seg.ORAC}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
                               Departure
                             </Typography>
                             <Typography variant="body2">
-                              {formatDate(segment.DEDT)} {formatTime(segment.DETM)}
+                              {seg.FTDA} {seg.FTDT}
                             </Typography>
                           </Box>
                         </Grid>
-
                         <Grid item xs={12} sm={6}>
-                          <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'white', borderRadius: 1 }}>
-                            <Typography variant="h4" fontWeight="bold" color="secondary">
-                              {segment.DSTC}
+                          <Box
+                            sx={{
+                              textAlign: 'center',
+                              p: 2,
+                              bgcolor: 'white',
+                              borderRadius: 1,
+                            }}
+                          >
+                            <Typography
+                              variant="h4"
+                              fontWeight="bold"
+                              color="secondary"
+                            >
+                              {seg.DSTC}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
                               Arrival
                             </Typography>
-                            <Typography variant="body2">
-                              {formatDate(segment.ARDT)} {formatTime(segment.ARTM)}
-                            </Typography>
+                            <Typography variant="body2">{seg.NADA}</Typography>
                           </Box>
                         </Grid>
                       </Grid>
 
-                      {segment.CLSS && (
-                        <Box sx={{ mt: 2 }}>
-                          <Typography variant="body2" color="text.secondary">
-                            Class of Service: <strong>{segment.CLSS}</strong>
-                          </Typography>
-                        </Box>
-                      )}
+                      <Box sx={{ mt: 2 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          Class of Service: <strong>{seg.RBKD}</strong>
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Status: <strong>{seg.FBST}</strong>
+                        </Typography>
+                      </Box>
                     </CardContent>
                   </Card>
                 ))}
@@ -319,7 +356,11 @@ const TicketDetails = () => {
               </Typography>
 
               <List>
-                <ListItem button onClick={handleViewTransaction} sx={{ borderRadius: 1, mb: 1 }}>
+                <ListItem
+                  button
+                  onClick={handleViewTransaction}
+                  sx={{ borderRadius: 1, mb: 1 }}
+                >
                   <ListItemIcon>
                     <TicketIcon color="primary" />
                   </ListItemIcon>
@@ -329,14 +370,18 @@ const TicketDetails = () => {
                   />
                 </ListItem>
 
-                {ticket.passenger && (
-                  <ListItem button onClick={handleViewPassenger} sx={{ borderRadius: 1, mb: 1 }}>
+                {passenger?.PXNM && (
+                  <ListItem
+                    button
+                    onClick={handleViewPassenger}
+                    sx={{ borderRadius: 1, mb: 1 }}
+                  >
                     <ListItemIcon>
                       <PersonIcon color="primary" />
                     </ListItemIcon>
                     <ListItemText
                       primary="Passenger Details"
-                      secondary={formatPassengerName(ticket.passenger.PXNM)}
+                      secondary={formatPassengerName(passenger.PXNM)}
                     />
                   </ListItem>
                 )}
@@ -347,7 +392,7 @@ const TicketDetails = () => {
                   </ListItemIcon>
                   <ListItemText
                     primary="Issuing Office"
-                    secondary={ticket.AGTN}
+                    secondary={office.AGTN || ticket.AGTN}
                   />
                 </ListItem>
               </List>
@@ -375,20 +420,18 @@ const TicketDetails = () => {
 
               <Divider sx={{ my: 2 }} />
 
-              <Box>
-                <Typography variant="body2" color="text.secondary">
-                  Total Amount
-                </Typography>
-                <Typography variant="h5" color="success.main" fontWeight="bold">
-                  {formatCurrency(ticket.financial?.TDAM || 0)}
-                </Typography>
-              </Box>
+              <Typography variant="body2" color="text.secondary">
+                Total Amount
+              </Typography>
+              <Typography variant="h5" color="success.main" fontWeight="bold">
+                {formatCurrency(parseAmount(financial.TDAM))}
+              </Typography>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* Financial Details */}
-        {ticket.financial && (
+        {/* Financial Breakdown */}
+        {financial && (
           <Grid item xs={12}>
             <Card>
               <CardContent>
@@ -406,20 +449,39 @@ const TicketDetails = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      <TableRow>
-                        <TableCell>Base Fare</TableCell>
-                        <TableCell align="right">{formatCurrency(ticket.financial.BFAM)}</TableCell>
-                        <TableCell>{ticket.financial.CUTP || 'USD'}</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Taxes & Fees</TableCell>
-                        <TableCell align="right">{formatCurrency(ticket.financial.TXAM)}</TableCell>
-                        <TableCell>{ticket.financial.CUTP || 'USD'}</TableCell>
-                      </TableRow>
+                      {financial.TMFT1 && (
+                        <TableRow>
+                          <TableCell>{financial.TMFT1}</TableCell>
+                          <TableCell align="right">
+                            {formatCurrency(parseAmount(financial.TMFA1))}
+                          </TableCell>
+                          <TableCell>{financial.CUTP || 'USD'}</TableCell>
+                        </TableRow>
+                      )}
+                      {financial.TMFT2 && (
+                        <TableRow>
+                          <TableCell>{financial.TMFT2}</TableCell>
+                          <TableCell align="right">
+                            {formatCurrency(parseAmount(financial.TMFA2))}
+                          </TableCell>
+                          <TableCell>{financial.CUTP || 'USD'}</TableCell>
+                        </TableRow>
+                      )}
+                      {financial.TMFT3 && (
+                        <TableRow>
+                          <TableCell>{financial.TMFT3}</TableCell>
+                          <TableCell align="right">
+                            {formatCurrency(parseAmount(financial.TMFA3))}
+                          </TableCell>
+                          <TableCell>{financial.CUTP || 'USD'}</TableCell>
+                        </TableRow>
+                      )}
                       <TableRow sx={{ '& td': { fontWeight: 'bold' } }}>
                         <TableCell>Total Amount</TableCell>
-                        <TableCell align="right">{formatCurrency(ticket.financial.TDAM)}</TableCell>
-                        <TableCell>{ticket.financial.CUTP || 'USD'}</TableCell>
+                        <TableCell align="right">
+                          {formatCurrency(parseAmount(financial.TDAM))}
+                        </TableCell>
+                        <TableCell>{financial.CUTP || 'USD'}</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>

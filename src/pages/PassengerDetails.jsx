@@ -18,10 +18,6 @@ import {
   TableHead,
   TableRow,
   Paper,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
   Alert,
   CircularProgress,
   Avatar,
@@ -46,7 +42,7 @@ import { fetchPassengerHistory } from '../store/slices/customerSlice';
 import MetricCard from '../components/dashboard/MetricCard';
 
 // Utils
-import { formatCurrency, formatDate, formatPassengerName, formatTicketNumber } from '../utils/formatters';
+import { formatCurrency, formatDate } from '../utils/formatters';
 
 const PassengerDetails = () => {
   const theme = useTheme();
@@ -55,30 +51,27 @@ const PassengerDetails = () => {
   const { transactionNumber } = useParams();
 
   const { passengerHistory } = useAppSelector((state) => state.customers);
-  const { loading, data: passenger, error } = passengerHistory;
+  const { loading, data, error } = passengerHistory;
 
-  // Load passenger history on component mount
+  // Load passenger history on mount
   React.useEffect(() => {
     if (transactionNumber) {
       dispatch(fetchPassengerHistory(transactionNumber));
     }
   }, [dispatch, transactionNumber]);
 
-  const handleBack = () => {
-    navigate(-1);
-  };
-
-  const handleViewTransaction = (trnn) => {
-    navigate(`/transactions/${trnn}`);
-  };
-
-  const handleViewTicket = (ticketNumber) => {
-    navigate(`/tickets/${ticketNumber}`);
-  };
+  const handleBack = () => navigate(-1);
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: 400,
+        }}
+      >
         <CircularProgress />
       </Box>
     );
@@ -88,38 +81,50 @@ const PassengerDetails = () => {
     return (
       <Box>
         <Button startIcon={<BackIcon />} onClick={handleBack} sx={{ mb: 2 }}>
-          Back to Passengers
+          Back
         </Button>
-        <Alert severity="error">
-          Error loading passenger details: {error}
-        </Alert>
+        <Alert severity="error">Error loading passenger details: {error}</Alert>
       </Box>
     );
   }
 
-  if (!passenger) {
+  if (!data?.passenger) {
     return (
       <Box>
         <Button startIcon={<BackIcon />} onClick={handleBack} sx={{ mb: 2 }}>
-          Back to Passengers
+          Back
         </Button>
-        <Alert severity="warning">
-          Passenger not found
-        </Alert>
+        <Alert severity="warning">Passenger not found</Alert>
       </Box>
     );
   }
 
-  // Calculate travel statistics
-  const totalTrips = passenger.travelHistory?.length || 0;
-  const totalSpent = passenger.travelHistory?.reduce((sum, trip) => sum + (trip.amount || 0), 0) || 0;
+  const passenger = data.passenger;
+  const currentTrip = data.currentTrip || {};
+  const itineraries = currentTrip.itinerary || [];
+  const payments = currentTrip.payments || [];
+  const tickets = currentTrip.tickets || [];
+
+  // Basic derived data
+  const totalTrips = 1 + (data.otherTrips?.length || 0);
+  const totalSpent = payments.reduce((sum, p) => {
+    const match = p.FPIN?.match(/(\d+(\.\d+)?)/);
+    return sum + (match ? parseFloat(match[1]) : 0);
+  }, 0);
+
   const averageSpent = totalTrips > 0 ? totalSpent / totalTrips : 0;
-  const lastTravelDate = passenger.travelHistory?.[0]?.date || null;
 
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 3,
+        }}
+      >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <IconButton onClick={handleBack}>
             <BackIcon />
@@ -129,20 +134,14 @@ const PassengerDetails = () => {
               Passenger Profile
             </Typography>
             <Typography variant="h6" color="text.secondary">
-              {formatPassengerName(passenger.name)}
+              {passenger.PXNM}
             </Typography>
           </Box>
-        </Box>
-        
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button variant="outlined" onClick={() => handleViewTransaction(passenger.lastTransaction)}>
-            View Latest Transaction
-          </Button>
         </Box>
       </Box>
 
       <Grid container spacing={3}>
-        {/* Passenger Overview */}
+        {/* Passenger Info */}
         <Grid item xs={12} md={8}>
           <Card>
             <CardContent>
@@ -156,80 +155,38 @@ const PassengerDetails = () => {
                     fontSize: '2rem',
                   }}
                 >
-                  {passenger.name?.charAt(0)?.toUpperCase() || 'P'}
+                  {passenger.PXNM?.charAt(0)?.toUpperCase() || 'P'}
                 </Avatar>
-                <Box sx={{ flexGrow: 1 }}>
+                <Box>
                   <Typography variant="h4" fontWeight={600}>
-                    {formatPassengerName(passenger.name)}
+                    {passenger.PXNM}
                   </Typography>
-                  <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                    <Chip 
-                      label={passenger.type || 'ADT'} 
-                      color={passenger.type === 'CHD' ? 'warning' : 'default'}
-                    />
-                    <Chip 
-                      label={`${totalTrips} trips`} 
-                      color="primary" 
-                      variant="outlined"
-                    />
-                    {totalTrips >= 10 && (
-                      <Chip 
-                        label="Frequent Traveler" 
-                        color="success"
-                      />
-                    )}
-                  </Box>
+                  <Chip label={passenger.PXTP || 'ADT'} sx={{ mt: 1 }} />
                 </Box>
               </Box>
 
-              <Divider sx={{ my: 3 }} />
+              <Divider sx={{ my: 2 }} />
 
-              {/* Passenger Information */}
               <Grid container spacing={3}>
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" color="text.secondary">
-                    Passenger Type
+                    Ticket Number
                   </Typography>
-                  <Typography variant="h6">
-                    {passenger.type === 'ADT' ? 'Adult' : 
-                     passenger.type === 'CHD' ? 'Child' : 
-                     passenger.type === 'INF' ? 'Infant' : 
-                     'Adult'}
-                  </Typography>
+                  <Typography variant="h6">{passenger.TDNR}</Typography>
                 </Grid>
 
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" color="text.secondary">
-                    Customer Since
+                    Transaction #
                   </Typography>
-                  <Typography variant="h6">
-                    {formatDate(passenger.firstTravelDate)}
-                  </Typography>
-                </Grid>
-
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2" color="text.secondary">
-                    Last Travel
-                  </Typography>
-                  <Typography variant="h6">
-                    {lastTravelDate ? formatDate(lastTravelDate) : 'N/A'}
-                  </Typography>
-                </Grid>
-
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2" color="text.secondary">
-                    Primary Currency
-                  </Typography>
-                  <Typography variant="h6">
-                    {passenger.preferredCurrency || 'USD'}
-                  </Typography>
+                  <Typography variant="h6">{passenger.TRNN}</Typography>
                 </Grid>
               </Grid>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* Travel Statistics */}
+        {/* Stats */}
         <Grid item xs={12} md={4}>
           <Grid container spacing={2}>
             <Grid item xs={12}>
@@ -259,90 +216,46 @@ const PassengerDetails = () => {
           </Grid>
         </Grid>
 
-        {/* Travel History */}
+        {/* Itinerary */}
         <Grid item xs={12}>
           <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="h6" fontWeight={600}>
-                  Travel History
-                </Typography>
-                <Chip 
-                  label={`${totalTrips} trips`} 
-                  color="primary" 
-                  variant="outlined"
-                />
-              </Box>
+              <Typography variant="h6" fontWeight={600} gutterBottom>
+                Itinerary
+              </Typography>
 
-              {passenger.travelHistory && passenger.travelHistory.length > 0 ? (
+              {itineraries.length > 0 ? (
                 <TableContainer component={Paper} variant="outlined">
                   <Table>
                     <TableHead>
                       <TableRow>
-                        <TableCell>Date</TableCell>
-                        <TableCell>Transaction</TableCell>
-                        <TableCell>Ticket Number</TableCell>
+                        <TableCell>Flight</TableCell>
                         <TableCell>Route</TableCell>
-                        <TableCell align="right">Amount</TableCell>
+                        <TableCell>Departure</TableCell>
+                        <TableCell>Arrival</TableCell>
                         <TableCell>Status</TableCell>
-                        <TableCell>Actions</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {passenger.travelHistory.slice(0, 10).map((trip, index) => (
-                        <TableRow key={index} hover>
+                      {itineraries.map((seg, i) => (
+                        <TableRow key={i}>
                           <TableCell>
-                            {formatDate(trip.date)}
+                            {seg.CARR}
+                            {seg.FTNR}
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2" fontFamily="monospace">
-                              TXN-{trip.transactionNumber}
-                            </Typography>
+                            {seg.ORAC} → {seg.DSTC}
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2" fontFamily="monospace">
-                              {formatTicketNumber(trip.ticketNumber)}
-                            </Typography>
+                            {seg.FTDA} {seg.FTDT}
                           </TableCell>
+                          <TableCell>{seg.NADA}</TableCell>
                           <TableCell>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <FlightIcon fontSize="small" color="primary" />
-                              <Typography variant="body2">
-                                {trip.route || 'N/A'}
-                              </Typography>
-                            </Box>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body2" fontWeight={500} color="success.main">
-                              {formatCurrency(trip.amount)}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Chip 
-                              label={trip.status || 'Completed'} 
-                              color={trip.status === 'Refunded' ? 'error' : 'success'}
+                            <Chip
+                              label={seg.FBST || 'OK'}
+                              color="success"
                               size="small"
                             />
-                          </TableCell>
-                          <TableCell>
-                            <Box sx={{ display: 'flex', gap: 1 }}>
-                              <Tooltip title="View Transaction">
-                                <IconButton 
-                                  size="small" 
-                                  onClick={() => handleViewTransaction(trip.transactionNumber)}
-                                >
-                                  <ReceiptIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="View Ticket">
-                                <IconButton 
-                                  size="small" 
-                                  onClick={() => handleViewTicket(trip.ticketNumber)}
-                                >
-                                  <FlightIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </Box>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -350,108 +263,52 @@ const PassengerDetails = () => {
                   </Table>
                 </TableContainer>
               ) : (
-                <Box sx={{ textAlign: 'center', py: 4 }}>
-                  <HistoryIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-                  <Typography variant="h6" color="text.secondary">
-                    No travel history available
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    This passenger hasn't made any trips yet
-                  </Typography>
-                </Box>
+                <Alert severity="info">No itinerary data available</Alert>
               )}
             </CardContent>
           </Card>
         </Grid>
 
-        {/* Quick Actions */}
-        <Grid item xs={12} md={6}>
+        {/* Payments */}
+        <Grid item xs={12}>
           <Card>
             <CardContent>
               <Typography variant="h6" fontWeight={600} gutterBottom>
-                Quick Actions
+                Payments
               </Typography>
 
-              <List>
-                <ListItem button onClick={() => handleViewTransaction(passenger.lastTransaction)} sx={{ borderRadius: 1, mb: 1 }}>
-                  <ListItemIcon>
-                    <ReceiptIcon color="primary" />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary="View Latest Transaction"
-                    secondary={`TXN-${passenger.lastTransaction}`}
-                  />
-                </ListItem>
-
-                <ListItem button sx={{ borderRadius: 1, mb: 1 }}>
-                  <ListItemIcon>
-                    <EventIcon color="primary" />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary="Schedule Follow-up"
-                    secondary="Create a reminder for this passenger"
-                  />
-                </ListItem>
-
-                <ListItem button sx={{ borderRadius: 1, mb: 1 }}>
-                  <ListItemIcon>
-                    <HistoryIcon color="primary" />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary="Export Travel History"
-                    secondary="Download complete travel record"
-                  />
-                </ListItem>
-              </List>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Travel Patterns */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
-                Travel Patterns
-              </Typography>
-
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Preferred Destinations
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
-                    {passenger.preferredDestinations?.map((dest, index) => (
-                      <Chip key={index} label={dest} size="small" variant="outlined" />
-                    )) || <Typography variant="body2">No data available</Typography>}
-                  </Box>
-                </Box>
-
-                <Divider />
-
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Travel Frequency
-                  </Typography>
-                  <Typography variant="body1">
-                    {totalTrips === 0 ? 'No trips' :
-                     totalTrips < 3 ? 'Occasional traveler' :
-                     totalTrips < 10 ? 'Regular traveler' :
-                     'Frequent traveler'}
-                  </Typography>
-                </Box>
-
-                <Divider />
-
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Average Trip Value
-                  </Typography>
-                  <Typography variant="h6" color="success.main">
-                    {formatCurrency(averageSpent)}
-                  </Typography>
-                </Box>
-              </Box>
+              {payments.length > 0 ? (
+                <TableContainer component={Paper} variant="outlined">
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>#</TableCell>
+                        <TableCell>Payment Info</TableCell>
+                        <TableCell align="right">Amount</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {payments.map((p, i) => {
+                        const match = p.FPIN?.match(/(\d+(\.\d+)?)/);
+                        const amount = match ? parseFloat(match[1]) : 0;
+                        return (
+                          <TableRow key={i}>
+                            <TableCell>{p.FPSN}</TableCell>
+                            <TableCell>{p.FPIN}</TableCell>
+                            <TableCell align="right">
+                              <Typography color="success.main" fontWeight={600}>
+                                {formatCurrency(amount)}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Alert severity="info">No payment data available</Alert>
+              )}
             </CardContent>
           </Card>
         </Grid>
